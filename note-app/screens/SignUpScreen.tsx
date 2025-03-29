@@ -1,16 +1,33 @@
-// app/signup.tsx
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
+  const [emailVerified, setEmailVerified] = useState(false);
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const router = useRouter();
 
   const API_BASE = 'http://192.168.219.113:5001'; // 너의 IP로 바꿔줘!
 
+  const handleEmailVerify = () => {
+    // 서버에 이메일 인증 요청 (이메일 발송)
+    // 아직 실제 기능 구현 전 - 알림만 표시
+    Alert.alert('이메일 인증 요청', '해당 이메일로 인증 링크가 전송되었습니다.');
+    setEmailVerified(true); // 테스트용으로 바로 인증 처리
+  };
+
   const handleSignUp = async () => {
+    if (!emailVerified) {
+      Alert.alert('이메일 미인증', '이메일 인증을 완료해주세요.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('비밀번호 불일치', '비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/api/user/register`, {
         method: 'POST',
@@ -22,7 +39,7 @@ export default function SignUpScreen() {
 
       if (res.ok) {
         Alert.alert('회원가입 성공', `${email}님, 환영합니다!`);
-        router.replace('/'); // 메인으로 이동
+        router.replace('/');
       } else {
         Alert.alert('회원가입 실패', data.message || '다시 시도해주세요');
       }
@@ -34,22 +51,33 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ← 뒤로가기 버튼 */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backButtonText}>←</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>회원가입</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="이메일"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+      {/* 이메일 입력 + 인증 버튼 */}
+      <View style={styles.emailRow}>
+        <TextInput
+          style={[styles.input, { flex: 1, marginRight: 8 }]}
+          placeholder="이메일"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <TouchableOpacity style={styles.verifyButton} onPress={handleEmailVerify}>
+          <Text style={styles.verifyText}>인증</Text>
+        </TouchableOpacity>
+      </View>
 
+      {/* 인증 상태 */}
+      <Text style={styles.verifyStatus}>
+        {emailVerified ? '✅ 이메일 인증 완료' : '❗ 이메일 인증 필요'}
+      </Text>
+
+      {/* 비밀번호 입력 */}
       <TextInput
         style={styles.input}
         placeholder="비밀번호"
@@ -58,6 +86,16 @@ export default function SignUpScreen() {
         secureTextEntry
       />
 
+      {/* 비밀번호 확인 */}
+      <TextInput
+        style={styles.input}
+        placeholder="비밀번호 확인"
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        secureTextEntry
+      />
+
+      {/* 회원가입 버튼 */}
       <TouchableOpacity style={styles.button} onPress={handleSignUp}>
         <Text style={styles.buttonText}>회원가입</Text>
       </TouchableOpacity>
@@ -73,7 +111,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 48, // 안전하게 notch 피해서
+    top: 48,
     left: 24,
     zIndex: 10,
   },
@@ -87,24 +125,54 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     textAlign: 'center',
   },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    width: '70%',
+    alignSelf: 'center',
+  },
   input: {
     height: 48,
     borderColor: '#ccc',
     borderWidth: 1,
     borderRadius: 8,
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 12,
+    width: '70%',
+    alignSelf: 'center',
   },
+  verifyButton: {
+    backgroundColor: '#000',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  verifyText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  verifyStatus: {
+    marginBottom: 16,
+    color: '#555',
+    fontSize: 14,
+    width: '70%',
+    alignSelf: 'center',
+  },
+  
   button: {
     backgroundColor: '#000',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 12,
+    width: '70%',
+    alignSelf: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    flex:1,
   },
 });
