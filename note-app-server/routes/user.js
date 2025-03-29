@@ -6,6 +6,32 @@ const crypto = require('crypto');
 const VerificationToken = require('../models/VerificationToken');
 const sendEmail = require('../utils/sendEmail');
 
+const VerifiedEmail = require('../models/VerifiedEmail');
+
+router.get('/verify-email', async (req, res) => {
+  const { token } = req.query;
+
+  try {
+    const record = await VerificationToken.findOne({ token });
+    if (!record) return res.status(400).send('❌ 유효하지 않은 인증 토큰입니다.');
+
+    // 이미 인증된 이메일인지 체크
+    const alreadyVerified = await VerifiedEmail.findOne({ email: record.email });
+    if (alreadyVerified) {
+      return res.send('✅ 이미 인증된 이메일입니다. 이제 회원가입이 가능합니다.');
+    }
+
+    // 인증 이메일 저장
+    await VerifiedEmail.create({ email: record.email });
+    await VerificationToken.deleteOne({ token });
+
+    res.send('✅ 이메일 인증 완료! 이제 회원가입이 가능합니다.');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('⚠️ 서버 오류 발생');
+  }
+});
+
 router.post('/send-verification', async (req, res) => {
   const { email } = req.body;
 
@@ -43,14 +69,23 @@ router.post('/register', async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // 이메일 인증 여부 확인
+    const isVerified = await VerifiedEmail.findOne({ email });
+    if (!isVerified) {
+      return res.status(403).json({ message: '이메일 인증이 필요합니다.' });
+    }
+
     const exists = await User.findOne({ email });
     if (exists) {
       return res.status(400).json({ message: '이미 가입된 이메일입니다.' });
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    const newUser = new User({ email, password: hashed });
+    const newUser = new User({ email, password: hashed, emailVerified: true });
     await newUser.save();
+
+    // 인증된 이메일 삭제 (옵션)
+    await VerifiedEmail.deleteOne({ email });
 
     res.status(201).json({ message: '회원가입 성공!' });
   } catch (err) {
@@ -58,6 +93,7 @@ router.post('/register', async (req, res) => {
     res.status(500).json({ message: '서버 오류' });
   }
 });
+
 
 // 로그인
 router.post('/login', async (req, res) => {
@@ -80,5 +116,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: '서버 오류' });
   }
 });
+
 
 module.exports = router;
