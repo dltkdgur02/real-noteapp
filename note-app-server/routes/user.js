@@ -134,5 +134,79 @@ router.get('/is-verified', async (req, res) => {
   }
 });
 
+const PasswordResetToken = require('../models/PasswordResetToken'); // 상단 import 추가
+
+// 🔐 비밀번호 재설정 요청
+router.post('/find-password', async (req, res) => {
+  console.log('✅ [도착] /find-password'); 
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: '가입된 이메일이 없습니다.' });
+    }
+
+    // 기존 토큰 삭제 (중복 방지)
+    await PasswordResetToken.deleteMany({ email });
+
+    // 새 토큰 생성
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1시간 유효
+
+    await PasswordResetToken.create({ email, token, expiresAt });
+
+    const resetLink = `http://localhost:5001/api/user/verify-email?token=${token}`;
+
+    await sendEmail(
+      email,
+      '🔐 Note App 비밀번호 재설정',
+      `<h2>비밀번호 재설정</h2>
+      <p>아래 버튼을 눌러 비밀번호를 재설정하세요.</p>
+      <a href="${resetLink}">👉 비밀번호 재설정</a>`
+    );
+
+    res.status(200).json({ message: '비밀번호 재설정 링크가 이메일로 전송되었습니다.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: '비밀번호 찾기 중 오류 발생' });
+  }
+});
+
+// 비밀번호 재설정
+router.post('/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    const record = await PasswordResetToken.findOne({ token });
+
+    if (!record) {
+      return res.status(400).json({ message: '유효하지 않은 토큰입니다.' });
+    }
+
+    if (record.expiresAt < new Date()) {
+      return res.status(400).json({ message: '토큰이 만료되었습니다.' });
+    }
+
+    const user = await User.findOne({ email: record.email });
+    if (!user) {
+      return res.status(404).json({ message: '해당 유저를 찾을 수 없습니다.' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.password = hashed;
+    await user.save();
+
+    // 사용한 토큰 삭제
+    await PasswordResetToken.deleteOne({ token });
+
+    res.status(200).json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: '비밀번호 재설정 중 오류 발생' });
+  }
+});
+
+
 
 module.exports = router;

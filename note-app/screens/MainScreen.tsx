@@ -60,6 +60,9 @@ export default function MainScreen() {
 
 
       </View>
+      <TouchableOpacity onPress={() => router.push('/findpassword')}>
+      <Text style={styles.findText}>🔐 비밀번호 찾기</Text>
+    </TouchableOpacity>
       
     </View>
   );
@@ -117,7 +120,13 @@ const styles = StyleSheet.create({
     color:'black',
     fontWeight: '500',
     fontSize: 16
-  }
+  },
+  findText: {
+    marginTop: 20,
+    color: '#444',
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
 
 
 });
