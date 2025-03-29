@@ -34,35 +34,37 @@ export default function SignUpScreen() {
   
 
   const handleSignUp = async () => {
-    if (!emailVerified) {
-      Alert.alert('이메일 미인증', '이메일 인증을 완료해주세요.');
+    if (!email || !password || !confirmPassword) {
+      Alert.alert('입력 오류', '모든 정보를 입력해주세요.');
       return;
     }
+  
     if (password !== confirmPassword) {
       Alert.alert('비밀번호 불일치', '비밀번호가 일치하지 않습니다.');
       return;
     }
-
+  
     try {
       const res = await fetch(`${API_BASE}/api/user/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
+  
       const data = await res.json();
-
+  
       if (res.ok) {
-        Alert.alert('회원가입 성공', `${email}님, 환영합니다!`);
+        Alert.alert('회원가입 성공', '이제 로그인해주세요!');
         router.replace('/');
       } else {
-        Alert.alert('회원가입 실패', data.message || '다시 시도해주세요');
+        Alert.alert('회원가입 실패', data.message || '서버 오류');
       }
     } catch (err) {
       console.error(err);
       Alert.alert('서버 오류', '회원가입 중 문제가 발생했습니다.');
     }
   };
+  
 
   return (
     <View style={styles.container}>
@@ -99,6 +101,9 @@ export default function SignUpScreen() {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        textContentType="oneTimeCode"
+        autoComplete="off"
+        autoCorrect={false}
       />
 
       {/* 비밀번호 확인 */}
@@ -108,6 +113,9 @@ export default function SignUpScreen() {
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         secureTextEntry
+        textContentType="oneTimeCode"
+        autoComplete="off"
+        autoCorrect={false}
       />
 
       {/* 회원가입 버튼 */}
