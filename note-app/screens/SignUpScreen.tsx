@@ -11,12 +11,27 @@ export default function SignUpScreen() {
 
   const API_BASE = 'http://192.168.219.113:5001'; // 너의 IP로 바꿔줘!
 
-  const handleEmailVerify = () => {
-    // 서버에 이메일 인증 요청 (이메일 발송)
-    // 아직 실제 기능 구현 전 - 알림만 표시
-    Alert.alert('이메일 인증 요청', '해당 이메일로 인증 링크가 전송되었습니다.');
-    setEmailVerified(true); // 테스트용으로 바로 인증 처리
+  const handleEmailVerify = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/send-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+  
+      const data = await res.json();
+  
+      if (res.ok) {
+        Alert.alert('인증 메일 전송 완료', '메일함을 확인해주세요!');
+      } else {
+        Alert.alert('실패', data.message || '메일 전송 실패');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('서버 오류', '이메일 인증 요청 중 문제가 발생했습니다.');
+    }
   };
+  
 
   const handleSignUp = async () => {
     if (!emailVerified) {
