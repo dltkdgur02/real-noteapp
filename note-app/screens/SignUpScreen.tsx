@@ -1,5 +1,5 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 export default function SignUpScreen() {
@@ -64,6 +64,40 @@ export default function SignUpScreen() {
       Alert.alert('서버 오류', '회원가입 중 문제가 발생했습니다.');
     }
   };
+  
+  const checkEmailVerified = async () => {
+    if (!email) return;
+  
+    try {
+      const res = await fetch(`${API_BASE}/api/user/is-verified?email=${email}`);
+      const data = await res.json();
+  
+      if (data.verified) {
+        setEmailVerified(true);
+        console.log('✅ 인증됨! 더 이상 확인 안 함');
+        return true; // 인증됨
+      }
+    } catch (err) {
+      console.error('이메일 인증 확인 오류:', err);
+    }
+  
+    return false; // 인증 안 됨
+  };
+  useEffect(() => {
+    if (!email) return;
+  
+    const interval = setInterval(async () => {
+      const verified = await checkEmailVerified();
+  
+      if (verified) {
+        clearInterval(interval); // ✅ 인증 완료 시 더 이상 요청 안 보냄
+      }
+    }, 3000); // 3초마다 확인
+  
+    return () => clearInterval(interval); // 화면 벗어나면 정리
+  }, [email]);
+    
+  
   
 
   return (

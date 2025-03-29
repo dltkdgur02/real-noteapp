@@ -117,5 +117,22 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// 이메일 인증 여부 확인
+router.get('/is-verified', async (req, res) => {
+  const { email } = req.query;
+
+  try {
+    if (!email) {
+      return res.status(400).json({ message: '이메일이 필요합니다.' });
+    }
+
+    const verified = await VerifiedEmail.findOne({ email });
+    res.status(200).json({ verified: !!verified });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: '서버 오류' });
+  }
+});
+
 
 module.exports = router;
