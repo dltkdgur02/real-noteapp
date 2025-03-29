@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 export default function FindpasswordScreen() {
   const [email, setEmail] = useState('');
   const router = useRouter();
-  const API_BASE = 'http://192.168.0.xxx:5001'; // 너의 서버 IP 주소로 변경
+  const API_BASE = 'http://192.168.219.113:5001'; // 너의 서버 IP 주소로 변경
 
   const handleSendResetLink = async () => {
     if (!email) {

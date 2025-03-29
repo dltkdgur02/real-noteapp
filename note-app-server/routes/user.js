@@ -156,7 +156,8 @@ router.post('/find-password', async (req, res) => {
 
     await PasswordResetToken.create({ email, token, expiresAt });
 
-    const resetLink = `http://localhost:5001/api/user/verify-email?token=${token}`;
+    const resetLink = `http://localhost:5001/api/user/reset-password?token=${token}`;
+
 
     await sendEmail(
       email,
