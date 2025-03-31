@@ -1,6 +1,8 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
+import { API_BASE } from '../utils/api';
+
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
@@ -9,7 +11,6 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const router = useRouter();
 
-  const API_BASE = 'http://192.168.219.113:5001'; // 너의 IP로 바꿔줘!
 
   const handleEmailVerify = async () => {
     try {

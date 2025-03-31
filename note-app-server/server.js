@@ -40,4 +40,6 @@ app.listen(PORT, () => {
   console.log(`🚀 서버 실행 중! http://localhost:${PORT}`);
 });
 
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 

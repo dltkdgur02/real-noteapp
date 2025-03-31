@@ -1,11 +1,11 @@
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { API_BASE } from '../utils/api';
 
 export default function FindpasswordScreen() {
   const [email, setEmail] = useState('');
   const router = useRouter();
-  const API_BASE = 'http://192.168.219.113:5001'; // 너의 서버 IP 주소로 변경
 
   const handleSendResetLink = async () => {
     if (!email) {
