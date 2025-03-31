@@ -12,6 +12,7 @@ export default function LoginScreen() {
   const handleSignUp = () => {
     router.push('/signup'); // 회원가입 페이지로 이동
   };
+ 
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +20,8 @@ export default function LoginScreen() {
   const handleLogin = () => {
     // 로그인 처리 로직 (예: API 요청 등)
     console.log('로그인 시도:', email, password);
+    router.replace('/main'); // 로그인 성공 후 메인으로 이동
+
   };
 
   return (
