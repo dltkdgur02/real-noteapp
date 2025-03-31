@@ -1,23 +1,28 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import DocumentTab from '../components/DocumentTab';
+import FavoriteTab from '../components/FavoriteTab';
+import SearchTab from '../components/SearchTab';
+import AiTab from '../components/AiTab';
 
 export default function MainScreen() {
   const [tab, setTab] = useState<'document' | 'favorite' | 'search' | 'ai'>('document');
 
-  const renderContent = () => {
-    switch (tab) {
-      case 'document':
-        return <Text style={styles.contentText}>📄 문서 목록입니다.</Text>;
-      case 'favorite':
-        return <Text style={styles.contentText}>⭐ 즐겨찾기 목록입니다.</Text>;
-      case 'search':
-        return <Text style={styles.contentText}>🔍 문서 검색입니다.</Text>;
-        case 'ai':
-        return <Text style={styles.contentText}>🔍 ai 기능입니다.</Text>;
-      default:
-        return null;
-    }
-  };
+const renderContent = () => {
+  switch (tab) {
+    case 'document':
+      return <DocumentTab />;
+    case 'favorite':
+      return <FavoriteTab />;
+    case 'search':
+      return <SearchTab />;
+    case 'ai':
+      return <AiTab />;
+    default:
+      return null;
+  }
+};
+
 
   return (
     <View style={styles.container}>
