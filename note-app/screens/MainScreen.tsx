@@ -1,9 +1,65 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 export default function MainScreen() {
+  const [tab, setTab] = useState<'document' | 'favorite' | 'search' | 'ai'>('document');
+
+  const renderContent = () => {
+    switch (tab) {
+      case 'document':
+        return <Text style={styles.contentText}>📄 문서 목록입니다.</Text>;
+      case 'favorite':
+        return <Text style={styles.contentText}>⭐ 즐겨찾기 목록입니다.</Text>;
+      case 'search':
+        return <Text style={styles.contentText}>🔍 문서 검색입니다.</Text>;
+        case 'ai':
+        return <Text style={styles.contentText}>🔍 ai 기능입니다.</Text>;
+      default:
+        return null;
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🎉 메인 화면입니다!</Text>
+      {/* 왼쪽 탭 메뉴 */}
+      <View style={styles.sidebar}>
+
+      <Text style={styles.sidebarTitle}>📝 Note-App</Text>
+
+        <TouchableOpacity
+          style={[styles.tabButton, tab === 'document' && styles.activeTab]}
+          onPress={() => setTab('document')}
+        >
+          <Text 
+          style={[styles.tabText,  tab === 'document' && styles.activeText]}>문서</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, tab === 'favorite' && styles.activeTab]}
+          onPress={() => setTab('favorite')}
+        >
+          <Text 
+          style={[styles.tabText,  tab === 'favorite' && styles.activeText]}>즐겨찾기</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, tab === 'search' && styles.activeTab]}
+          onPress={() => setTab('search')}
+        >
+          <Text 
+          style={[styles.tabText,  tab === 'search' && styles.activeText]}>검색</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, tab === 'ai' && styles.activeTab]}
+          onPress={() => setTab('ai')}
+        >
+          <Text 
+          style={[styles.tabText,  tab === 'ai' && styles.activeText]}>Ai 기능</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 우측 콘텐츠 영역 */}
+      <View style={styles.content}>
+        {renderContent()}
+      </View>
     </View>
   );
 }
@@ -11,11 +67,51 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: 'row',
+  },
+  sidebar: {
+    width: 250,
+    backgroundColor: '#f0f0f0',
+    paddingTop: 40,
+    paddingHorizontal: 8,
+  },
+  tabButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 6,
+    backgroundColor: '#ddd',
+  },
+  activeTab: {
+    backgroundColor: '#000',
+    opacity:0.5,
+  },
+  tabText: {
+    color: '#000',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    padding: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
+  contentText: {
+    fontSize: 20,
     fontWeight: 'bold',
   },
+  activeText: {
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  sidebarTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 32,
+    textAlign: 'center',
+    color: '#000',
+  },
+  
 });
