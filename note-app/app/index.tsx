@@ -1,4 +1,4 @@
-import MainScreen from '../screens/MainScreen';
+import LoginScreen from '../screens/LoginScreen';
 
-export default MainScreen;
+export default LoginScreen;
 

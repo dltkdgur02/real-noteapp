@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 
 
 
-export default function MainScreen() {
+export default function LoginScreen() {
   const router = useRouter();
   const handleSignUp = () => {
     router.push('/signup'); // 회원가입 페이지로 이동
