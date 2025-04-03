@@ -62,7 +62,7 @@ const renderContent = () => {
       </View>
 
       {/* 우측 콘텐츠 영역 */}
-      <View style={styles.content}>
+      <View style={{flex:1}}>
         {renderContent()}
       </View>
     </View>
@@ -112,6 +112,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sidebarTitle: {
+    height: 50,
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 32,
