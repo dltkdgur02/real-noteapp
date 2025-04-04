@@ -3,48 +3,38 @@ import { useState } from 'react';
 import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
 import { useRouter } from 'expo-router';
+import { useFolderManager } from '../hooks/useFolderManager'; 
 
 export default function DocumentTab() {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [folderModalVisible, setFolderModalVisible] = useState(false);
-  const [folderName, setFolderName] = useState('');
-  const [folders, setFolders] = useState<string[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [optionsVisible, setOptionsVisible] = useState<number | null>(null);
-  const [editMode, setEditMode] = useState(false);
   const router = useRouter();
+  const {
+    folders,
+    folderName,
+    setFolderName,
+    folderModalVisible,
+    setFolderModalVisible,
+    optionsVisible,
+    setOptionsVisible,
+    selectedIndex,
+    setSelectedIndex,
+    editMode,
+    setEditMode,
+    openCreateModal,
+    createFolder,
+    deleteFolder,
+    renameFolder,
+  } = useFolderManager();
+
+  const [modalVisible, setModalVisible] = useState(false);
 
   const handleAction = (action: string) => {
     if (action === '폴더 생성') {
-      setFolderModalVisible(true);
+      openCreateModal();
     }
     setModalVisible(false);
   };
 
-  const handleCreateFolder = () => {
-    if (folderName.trim() === '') return;
-    setFolders((prev) => [...prev, folderName]);
-    setFolderName('');
-    setFolderModalVisible(false);
-  };
-
-  const handleDeleteFolder = (index: number) => {
-    const updated = [...folders];
-    updated.splice(index, 1);
-    setFolders(updated);
-    setOptionsVisible(null);
-  };
-
-  const handleRenameFolder = () => {
-    if (folderName.trim() === '' || selectedIndex === null) return;
-    const updated = [...folders];
-    updated[selectedIndex] = folderName;
-    setFolders(updated);
-    setFolderName('');
-    setSelectedIndex(null);
-    setEditMode(false);
-    setFolderModalVisible(false);
-  };
+  // 이하 동일하게 사용 가능
 
   return (
     <View style={styles.wrapper}>
@@ -65,7 +55,7 @@ export default function DocumentTab() {
           {/* 폴더 아이템들 */}
           {folders.map((name, index) => (
             <View key={index} style={styles.folderContainer}>
-               <TouchableOpacity style={styles.folderItem} onPress={() => router.push(`/folder/${name}`)}>
+              <TouchableOpacity style={styles.folderItem} onPress={() => router.push(`/folder/${name}`)}>
               <FolderIcon width={150} height={150} />
               </TouchableOpacity>
               <View style={styles.folderLabelRow}>
@@ -89,7 +79,7 @@ export default function DocumentTab() {
                   >
                     <Text style={styles.dropdownOption}>이름 변경</Text>
                   </Pressable>
-                  <Pressable onPress={() => handleDeleteFolder(index)}>
+                  <Pressable onPress={() => deleteFolder(index)}>
                     <Text style={styles.dropdownOption}>폴더 삭제</Text>
                   </Pressable>
                 </View>
@@ -133,7 +123,7 @@ export default function DocumentTab() {
             />
             <TouchableOpacity
               style={styles.createButton}
-              onPress={editMode ? handleRenameFolder : handleCreateFolder}
+              onPress={editMode ? renameFolder : createFolder}
             >
               <Text style={styles.createButtonText}>{editMode ? '변경' : '생성'}</Text>
             </TouchableOpacity>
