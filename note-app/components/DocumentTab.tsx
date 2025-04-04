@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, TextInput, 
 import { useState } from 'react';
 import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
+import { useRouter } from 'expo-router';
 
 export default function DocumentTab() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -11,6 +12,7 @@ export default function DocumentTab() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [optionsVisible, setOptionsVisible] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const router = useRouter();
 
   const handleAction = (action: string) => {
     if (action === '폴더 생성') {
@@ -63,8 +65,8 @@ export default function DocumentTab() {
           {/* 폴더 아이템들 */}
           {folders.map((name, index) => (
             <View key={index} style={styles.folderContainer}>
-              <TouchableOpacity style={styles.folderItem}>
-                <FolderIcon width={150} height={150} />
+               <TouchableOpacity style={styles.folderItem} onPress={() => router.push(`/folder/${name}`)}>
+              <FolderIcon width={150} height={150} />
               </TouchableOpacity>
               <View style={styles.folderLabelRow}>
                 <Text style={styles.folderText}>{name}</Text>

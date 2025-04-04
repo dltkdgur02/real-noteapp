@@ -1,70 +1,75 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useLocalSearchParams } from 'expo-router'; // ✅ 추가
 import DocumentTab from '../components/DocumentTab';
 import FavoriteTab from '../components/FavoriteTab';
 import SearchTab from '../components/SearchTab';
 import AiTab from '../components/AiTab';
 
 export default function MainScreen() {
+  const { tab: queryTab } = useLocalSearchParams(); // ✅ 쿼리에서 탭 파라미터 가져오기
   const [tab, setTab] = useState<'document' | 'favorite' | 'search' | 'ai'>('document');
 
-const renderContent = () => {
-  switch (tab) {
-    case 'document':
-      return <DocumentTab />;
-    case 'favorite':
-      return <FavoriteTab />;
-    case 'search':
-      return <SearchTab />;
-    case 'ai':
-      return <AiTab />;
-    default:
-      return null;
-  }
-};
+  useEffect(() => {
+    if (
+      queryTab === 'document' ||
+      queryTab === 'favorite' ||
+      queryTab === 'search' ||
+      queryTab === 'ai'
+    ) {
+      setTab(queryTab as any); // ✅ 쿼리로 넘어온 탭으로 설정
+    }
+  }, [queryTab]);
 
+  const renderContent = () => {
+    switch (tab) {
+      case 'document':
+        return <DocumentTab />;
+      case 'favorite':
+        return <FavoriteTab />;
+      case 'search':
+        return <SearchTab />;
+      case 'ai':
+        return <AiTab />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <View style={styles.container}>
       {/* 왼쪽 탭 메뉴 */}
       <View style={styles.sidebar}>
-
-      <Text style={styles.sidebarTitle}>📝 Note-App</Text>
+        <Text style={styles.sidebarTitle}>📝 Note-App</Text>
 
         <TouchableOpacity
           style={[styles.tabButton, tab === 'document' && styles.activeTab]}
           onPress={() => setTab('document')}
         >
-          <Text 
-          style={[styles.tabText,  tab === 'document' && styles.activeText]}>문서</Text>
+          <Text style={[styles.tabText, tab === 'document' && styles.activeText]}>문서</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, tab === 'favorite' && styles.activeTab]}
           onPress={() => setTab('favorite')}
         >
-          <Text 
-          style={[styles.tabText,  tab === 'favorite' && styles.activeText]}>즐겨찾기</Text>
+          <Text style={[styles.tabText, tab === 'favorite' && styles.activeText]}>즐겨찾기</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, tab === 'search' && styles.activeTab]}
           onPress={() => setTab('search')}
         >
-          <Text 
-          style={[styles.tabText,  tab === 'search' && styles.activeText]}>검색</Text>
+          <Text style={[styles.tabText, tab === 'search' && styles.activeText]}>검색</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, tab === 'ai' && styles.activeTab]}
           onPress={() => setTab('ai')}
         >
-          <Text 
-          style={[styles.tabText,  tab === 'ai' && styles.activeText]}>Ai 기능</Text>
+          <Text style={[styles.tabText, tab === 'ai' && styles.activeText]}>Ai 기능</Text>
         </TouchableOpacity>
       </View>
 
       {/* 우측 콘텐츠 영역 */}
-      <View style={{flex:1}}>
-        {renderContent()}
-      </View>
+      <View style={{ flex: 1 }}>{renderContent()}</View>
     </View>
   );
 }
@@ -89,7 +94,7 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     backgroundColor: '#000',
-    opacity:0.5,
+    opacity: 0.5,
   },
   tabText: {
     color: '#000',
@@ -119,5 +124,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#000',
   },
-  
 });
