@@ -82,7 +82,15 @@ export default function FolderScreen() {
       {/* 오른쪽 콘텐츠 */}
       <View style={styles.wrapper}>
         <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/main?tab=document');
+              }
+            }}
+          >
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <View style={styles.titleWrapper}>
