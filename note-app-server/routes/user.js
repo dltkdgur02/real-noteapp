@@ -95,7 +95,7 @@ router.post('/register', async (req, res) => {
 });
 
 
-// 로그인
+//  로그인
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -110,7 +110,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: '비밀번호가 틀렸습니다.' });
     }
 
-    res.status(200).json({ message: '로그인 성공', user: { email: user.email } });
+    res.status(200).json({ 
+      message: '로그인 성공', 
+      user: { 
+        _id: user._id, 
+        email: user.email 
+      } 
+    });
+    
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: '서버 오류' });

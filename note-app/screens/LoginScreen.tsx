@@ -1,6 +1,7 @@
 import { View, Text, TextInput, StyleSheet, Button, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { saveUserId } from '../utils/auth'; // 위치는 프로젝트 구조에 따라 조정
 
 
 
@@ -17,11 +18,29 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // 로그인 처리 로직 (예: API 요청 등)
-    console.log('로그인 시도:', email, password);
-    router.replace('/main'); // 로그인 성공 후 메인으로 이동
-
+  const handleLogin = async () => {
+    try {
+      const res = await fetch('http://192.168.0.30:5001/api/user/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+  
+      const data = await res.json();
+  
+      if (res.status === 200 && data.user) {
+        console.log('✅ 로그인 성공:', data);
+  
+        // userId 저장
+        await saveUserId(data.user._id); // _id가 서버에서 오는 user의 id라고 가정
+  
+        router.replace('/main');
+      } else {
+        console.log('❌ 로그인 실패:', data.message);
+      }
+    } catch (err) {
+      console.error('로그인 중 오류:', err);
+    }
   };
 
   return (

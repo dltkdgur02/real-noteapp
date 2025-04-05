@@ -5,9 +5,14 @@ require('dotenv').config();
 
 const app = express();
 
+
 // ✅ 먼저 미들웨어부터 적용!
 app.use(cors());
 app.use(express.json());
+
+const folderRoutes = require('./routes/folder');
+app.use('/api/folders', folderRoutes);
+
 
 
 
@@ -36,10 +41,12 @@ app.get('/', (req, res) => {
 
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 서버 실행 중! http://localhost:${PORT}`);
 });
 
 const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
+
+
 
