@@ -18,6 +18,21 @@ export default function FolderScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const currentFolderId = typeof id === 'string' ? id : null;
+  const buildBreadcrumbString = (folderId: string | null): string => {
+    const names: string[] = [];
+  
+    let currentId = folderId;
+    while (currentId) {
+      const folder = folders.find(f => f._id === currentId);
+      if (!folder) break;
+      names.unshift(folder.name);
+      currentId = folder.parentId;
+    }
+  
+    return names.join(' → ');
+  };
+  
+  
 
   const {
     folders,
@@ -132,9 +147,11 @@ export default function FolderScreen() {
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
           <View style={styles.titleWrapper}>
-            <Text style={styles.headerText}>📁 {currentFolder?.name ?? '폴더'}</Text>
+            <Text style={styles.headerText}>📁 {buildBreadcrumbString(currentFolderId)}</Text>
           </View>
         </View>
+
+     
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.folderRow}>
@@ -308,4 +325,17 @@ const styles = StyleSheet.create({
   },
   createButtonText: { color: '#fff', fontWeight: 'bold' },
   cancelText: { marginTop: 16, color: '#999' },
+  breadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  
+  breadcrumbText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  
 });
