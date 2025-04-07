@@ -1,3 +1,4 @@
+import { API_BASE } from '@/utils/api';
 import { View, Text, TextInput, StyleSheet, Button, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -13,14 +14,14 @@ export default function LoginScreen() {
   const handleSignUp = () => {
     router.push('/signup'); // 회원가입 페이지로 이동
   };
- 
+
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
     try {
-      const res = await fetch('http://192.168.0.30:5001/api/user/login', {
+      const res = await fetch(`${API_BASE}/api/user/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

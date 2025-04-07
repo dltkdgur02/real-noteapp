@@ -21,7 +21,7 @@ export function useFolderManager() {
   
       if (id) {
         try {
-          const res = await axios.get('http://192.168.0.30:5001/api/folders/list', {
+          const res = await axios.get(`${API_BASE}/api/folders/list`, {
             params: { userId: id },
           });
   
@@ -59,7 +59,7 @@ export function useFolderManager() {
         userId,
         name: folderName,
       });
-      const res = await axios.post('http://192.168.0.30:5001/api/folders/create', {
+      const res = await axios.post(`${API_BASE}/api/folders/create`, {
         userId,
         name: folderName,
       });
