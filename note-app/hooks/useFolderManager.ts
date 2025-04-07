@@ -5,12 +5,22 @@ import { getUserId } from '../utils/auth';
 import { API_BASE } from '@/utils/api';
 
 export function useFolderManager() {
-  const [folders, setFolders] = useState<string[]>([]);
+  
+  type Folder = {
+  _id: string;
+  name: string;
+  userId: string;
+  parentId: string | null;
+};
+
+const [folders, setFolders] = useState<Folder[]>([]);
   const [folderName, setFolderName] = useState('');
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [folderModalVisible, setFolderModalVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState<number | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -26,7 +36,7 @@ export function useFolderManager() {
           });
   
           if (res.status === 200) {
-            setFolders(res.data.folders.map((folder: any) => folder.name)); // name만 추출해서 상태에 저장
+            setFolders(res.data.folders); // 전체 폴더 데이터 저장
           }
         } catch (err: any) {
           console.error('폴더 불러오기 실패:', err.response?.data || err.message);
@@ -36,6 +46,7 @@ export function useFolderManager() {
   
     fetchUserIdAndFolders();
   }, []);
+  
   
   
 
@@ -58,16 +69,20 @@ export function useFolderManager() {
       console.log('➡️ 폴더 생성 요청:', {
         userId,
         name: folderName,
+        parentId: selectedFolderId,
       });
       const res = await axios.post(`${API_BASE}/api/folders/create`, {
         userId,
         name: folderName,
+        parentId: selectedFolderId ?? null,
       });
   
       if (res.status === 201) {
-        setFolders(prev => [...prev, res.data.folder.name]); 
+        setFolders(prev => [...prev, res.data.folder]); 
         setFolderName('');
         setFolderModalVisible(false);
+
+        setSelectedFolderId(null);
       }
     } catch (error: any) {
       console.error('폴더 생성 실패:', error.response?.data || error.message);
@@ -86,7 +101,11 @@ export function useFolderManager() {
   const renameFolder = () => {
     if (folderName.trim() === '' || selectedIndex === null) return;
     const updated = [...folders];
-    updated[selectedIndex] = folderName;
+    updated[selectedIndex] = {
+      ...updated[selectedIndex],
+      name: folderName,
+    };
+    
     setFolders(updated);
     setFolderName('');
     setSelectedIndex(null);
@@ -94,6 +113,7 @@ export function useFolderManager() {
     setFolderModalVisible(false);
   };
 
+  
   return {
     folders,
     folderName,
@@ -110,5 +130,8 @@ export function useFolderManager() {
     createFolder,
     deleteFolder,
     renameFolder,
+    selectedFolderId,          // ✅ 추가
+    setSelectedFolderId        // ✅ 추가
   };
+  
 }

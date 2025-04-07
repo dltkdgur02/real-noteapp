@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router'; // ✅ 추가
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import DocumentTab from '../components/DocumentTab';
 import FavoriteTab from '../components/FavoriteTab';
 import SearchTab from '../components/SearchTab';
 import AiTab from '../components/AiTab';
 
 export default function MainScreen() {
-  const { tab: queryTab } = useLocalSearchParams(); // ✅ 쿼리에서 탭 파라미터 가져오기
+  const router = useRouter();
+  const { tab: queryTab } = useLocalSearchParams();
   const [tab, setTab] = useState<'document' | 'favorite' | 'search' | 'ai'>('document');
 
   useEffect(() => {
@@ -17,9 +18,14 @@ export default function MainScreen() {
       queryTab === 'search' ||
       queryTab === 'ai'
     ) {
-      setTab(queryTab as any); // ✅ 쿼리로 넘어온 탭으로 설정
+      setTab(queryTab as any);
     }
   }, [queryTab]);
+
+  const navigateToTab = (newTab: typeof tab) => {
+    setTab(newTab);
+    router.push(`/main?tab=${newTab}`); // URL도 함께 변경
+  };
 
   const renderContent = () => {
     switch (tab) {
@@ -38,37 +44,35 @@ export default function MainScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 왼쪽 탭 메뉴 */}
       <View style={styles.sidebar}>
         <Text style={styles.sidebarTitle}>📝 Note-App</Text>
 
         <TouchableOpacity
           style={[styles.tabButton, tab === 'document' && styles.activeTab]}
-          onPress={() => setTab('document')}
+          onPress={() => navigateToTab('document')}
         >
           <Text style={[styles.tabText, tab === 'document' && styles.activeText]}>문서</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, tab === 'favorite' && styles.activeTab]}
-          onPress={() => setTab('favorite')}
+          onPress={() => navigateToTab('favorite')}
         >
           <Text style={[styles.tabText, tab === 'favorite' && styles.activeText]}>즐겨찾기</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, tab === 'search' && styles.activeTab]}
-          onPress={() => setTab('search')}
+          onPress={() => navigateToTab('search')}
         >
           <Text style={[styles.tabText, tab === 'search' && styles.activeText]}>검색</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, tab === 'ai' && styles.activeTab]}
-          onPress={() => setTab('ai')}
+          onPress={() => navigateToTab('ai')}
         >
           <Text style={[styles.tabText, tab === 'ai' && styles.activeText]}>Ai 기능</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 우측 콘텐츠 영역 */}
       <View style={{ flex: 1 }}>{renderContent()}</View>
     </View>
   );

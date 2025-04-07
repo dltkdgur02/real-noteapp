@@ -3,7 +3,7 @@ import { useState } from 'react';
 import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
 import { useRouter } from 'expo-router';
-import { useFolderManager } from '../hooks/useFolderManager'; 
+import { useFolderManager } from '../hooks/useFolderManager';
 
 export default function DocumentTab() {
   const router = useRouter();
@@ -34,15 +34,12 @@ export default function DocumentTab() {
     setModalVisible(false);
   };
 
-  // 이하 동일하게 사용 가능
-
   return (
     <View style={styles.wrapper}>
       <View style={styles.header}>
         <Text style={styles.headerText}>문서</Text>
       </View>
 
-      {/* 스크롤 영역 */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.folderRow}>
           {/* 플러스 버튼 */}
@@ -52,40 +49,46 @@ export default function DocumentTab() {
             </View>
           </TouchableOpacity>
 
-          {/* 폴더 아이템들 */}
-          {folders.map((name, index) => (
-            <View key={index} style={styles.folderContainer}>
-              <TouchableOpacity style={styles.folderItem} onPress={() => router.push(`/folder/${name}`)}>
-              <FolderIcon width={150} height={150} />
-              </TouchableOpacity>
-              <View style={styles.folderLabelRow}>
-                <Text style={styles.folderText}>{name}</Text>
-                <TouchableOpacity onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}>
-                  <Text style={styles.dropdown}>▼</Text>
+          {/* ✅ 최상위 폴더만 렌더링 */}
+          {folders
+            .filter(folder => folder.parentId === null)
+            .map((folder, index) => (
+              <View key={folder._id} style={styles.folderContainer}>
+                <TouchableOpacity
+                  style={styles.folderItem}
+                  onPress={() => router.push(`/folder/${folder._id}`)}
+                >
+                  <FolderIcon width={150} height={150} />
                 </TouchableOpacity>
-              </View>
-
-              {/* 폴더 옵션 */}
-              {optionsVisible === index && (
-                <View style={styles.dropdownBox}>
-                  <Pressable
-                    onPress={() => {
-                      setSelectedIndex(index);
-                      setEditMode(true);
-                      setFolderName(name);
-                      setFolderModalVisible(true);
-                      setOptionsVisible(null);
-                    }}
+                <View style={styles.folderLabelRow}>
+                  <Text style={styles.folderText}>{folder.name}</Text>
+                  <TouchableOpacity
+                    onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}
                   >
-                    <Text style={styles.dropdownOption}>이름 변경</Text>
-                  </Pressable>
-                  <Pressable onPress={() => deleteFolder(index)}>
-                    <Text style={styles.dropdownOption}>폴더 삭제</Text>
-                  </Pressable>
+                    <Text style={styles.dropdown}>▼</Text>
+                  </TouchableOpacity>
                 </View>
-              )}
-            </View>
-          ))}
+
+                {optionsVisible === index && (
+                  <View style={styles.dropdownBox}>
+                    <Pressable
+                      onPress={() => {
+                        setSelectedIndex(index);
+                        setEditMode(true);
+                        setFolderName(folder.name);
+                        setFolderModalVisible(true);
+                        setOptionsVisible(null);
+                      }}
+                    >
+                      <Text style={styles.dropdownOption}>이름 변경</Text>
+                    </Pressable>
+                    <Pressable onPress={() => deleteFolder(index)}>
+                      <Text style={styles.dropdownOption}>폴더 삭제</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            ))}
         </View>
       </ScrollView>
 
@@ -110,11 +113,13 @@ export default function DocumentTab() {
         </View>
       </Modal>
 
-      {/* 폴더 생성 / 수정 모달 */}
+      {/* 폴더 생성/수정 모달 */}
       <Modal transparent visible={folderModalVisible} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{editMode ? '이름 변경' : '폴더 이름을 입력하세요'}</Text>
+            <Text style={styles.modalTitle}>
+              {editMode ? '이름 변경' : '폴더 이름을 입력하세요'}
+            </Text>
             <TextInput
               placeholder="예: 수학노트"
               style={styles.input}
@@ -125,7 +130,9 @@ export default function DocumentTab() {
               style={styles.createButton}
               onPress={editMode ? renameFolder : createFolder}
             >
-              <Text style={styles.createButtonText}>{editMode ? '변경' : '생성'}</Text>
+              <Text style={styles.createButtonText}>
+                {editMode ? '변경' : '생성'}
+              </Text>
             </TouchableOpacity>
             <Pressable onPress={() => {
               setFolderModalVisible(false);
@@ -140,6 +147,7 @@ export default function DocumentTab() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#fff' },

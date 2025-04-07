@@ -1,6 +1,4 @@
-// app/folder/[name].tsx
-
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
@@ -12,57 +10,98 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-
+import { useFolderManager } from '@/hooks/useFolderManager';
 import PlusIcon from '../../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../../assets/images/folder.svg';
 
 export default function FolderScreen() {
   const router = useRouter();
-  const { name } = useLocalSearchParams();
+  const { id } = useLocalSearchParams();
+  const currentFolderId = typeof id === 'string' ? id : null;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [folderModalVisible, setFolderModalVisible] = useState(false);
-  const [folderName, setFolderName] = useState('');
-  const [folders, setFolders] = useState<string[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [optionsVisible, setOptionsVisible] = useState<number | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const {
+    folders,
+    createFolder,
+    folderModalVisible,
+    setFolderModalVisible,
+    folderName,
+    setFolderName,
+    editMode,
+    setEditMode,
+    selectedIndex,
+    setSelectedIndex,
+    optionsVisible,
+    setOptionsVisible,
+    renameFolder,
+    deleteFolder,
+    selectedFolderId,
+    setSelectedFolderId,
+  } = useFolderManager();
+
+  const currentFolder = folders.find(f => f._id === currentFolderId);
+
+  useEffect(() => {
+    if (currentFolderId) {
+      setSelectedFolderId(currentFolderId);
+    }
+  }, [currentFolderId]);
 
   const handleAction = (action: string) => {
     if (action === '폴더 생성') {
+      setSelectedFolderId(currentFolderId);
       setFolderModalVisible(true);
     }
-    setModalVisible(false);
   };
 
-  const handleCreateFolder = () => {
-    if (folderName.trim() === '') return;
-    setFolders((prev) => [...prev, folderName]);
-    setFolderName('');
-    setFolderModalVisible(false);
-  };
+  const renderChildFolders = () => {
+    return folders
+      .filter(folder => folder.parentId === currentFolderId)
+      .map((folder, index) => (
+        <View key={folder._id} style={styles.folderContainer}>
+          <TouchableOpacity
+            style={styles.folderItem}
+            onPress={() => {
+              setSelectedFolderId(folder._id);
+              router.push(`/folder/${folder._id}`);
+            }}
+          >
+            <FolderIcon width={150} height={150} />
+          </TouchableOpacity>
+          <View style={styles.folderLabelRow}>
+            <Text style={styles.folderText}>{folder.name}</Text>
+            <TouchableOpacity
+              onPress={() =>
+                setOptionsVisible(optionsVisible === index ? null : index)
+              }
+            >
+              <Text style={styles.dropdown}>▼</Text>
+            </TouchableOpacity>
+          </View>
 
-  const handleDeleteFolder = (index: number) => {
-    const updated = [...folders];
-    updated.splice(index, 1);
-    setFolders(updated);
-    setOptionsVisible(null);
-  };
-
-  const handleRenameFolder = () => {
-    if (folderName.trim() === '' || selectedIndex === null) return;
-    const updated = [...folders];
-    updated[selectedIndex] = folderName;
-    setFolders(updated);
-    setFolderName('');
-    setSelectedIndex(null);
-    setEditMode(false);
-    setFolderModalVisible(false);
+          {optionsVisible === index && (
+            <View style={styles.dropdownBox}>
+              <Pressable
+                onPress={() => {
+                  setSelectedIndex(index);
+                  setEditMode(true);
+                  setFolderName(folder.name);
+                  setFolderModalVisible(true);
+                  setOptionsVisible(null);
+                }}
+              >
+                <Text style={styles.dropdownOption}>이름 변경</Text>
+              </Pressable>
+              <Pressable onPress={() => deleteFolder(index)}>
+                <Text style={styles.dropdownOption}>폴더 삭제</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      ));
   };
 
   return (
     <View style={styles.container}>
-      {/* 사이드바 */}
       <View style={styles.sidebar}>
         <Text style={styles.sidebarTitle}>📝 Note-App</Text>
         <TouchableOpacity onPress={() => router.push('/main?tab=document')} style={styles.tabButton}>
@@ -79,10 +118,9 @@ export default function FolderScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 오른쪽 콘텐츠 */}
       <View style={styles.wrapper}>
         <View style={styles.header}>
-        <TouchableOpacity
+          <TouchableOpacity
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -91,88 +129,26 @@ export default function FolderScreen() {
               }
             }}
           >
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.titleWrapper}>
-          <Text style={styles.headerText}>📁 {name}</Text>
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.titleWrapper}>
+            <Text style={styles.headerText}>📁 {currentFolder?.name ?? '폴더'}</Text>
+          </View>
         </View>
-      </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.folderRow}>
-            {/* 플러스 버튼 */}
-            <TouchableOpacity style={styles.folderContainer} onPress={() => setModalVisible(true)}>
+            <TouchableOpacity style={styles.folderContainer} onPress={() => handleAction('폴더 생성')}>
               <View style={styles.folderItem}>
                 <PlusIcon width={150} height={150} />
               </View>
             </TouchableOpacity>
 
-            {/* 폴더 아이템 */}
-            {folders.map((item, index) => (
-              <View key={index} style={styles.folderContainer}>
-                <TouchableOpacity
-                  style={styles.folderItem}
-                  onPress={() => router.push(`/folder/${item}`)}
-                >
-                  <FolderIcon width={150} height={150} />
-                </TouchableOpacity>
-                <View style={styles.folderLabelRow}>
-                  <Text style={styles.folderText}>{item}</Text>
-                  <TouchableOpacity
-                    onPress={() =>
-                      setOptionsVisible(optionsVisible === index ? null : index)
-                    }
-                  >
-                    <Text style={styles.dropdown}>▼</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {optionsVisible === index && (
-                  <View style={styles.dropdownBox}>
-                    <Pressable
-                      onPress={() => {
-                        setSelectedIndex(index);
-                        setEditMode(true);
-                        setFolderName(item);
-                        setFolderModalVisible(true);
-                        setOptionsVisible(null);
-                      }}
-                    >
-                      <Text style={styles.dropdownOption}>이름 변경</Text>
-                    </Pressable>
-                    <Pressable onPress={() => handleDeleteFolder(index)}>
-                      <Text style={styles.dropdownOption}>폴더 삭제</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-            ))}
+            {renderChildFolders()}
           </View>
         </ScrollView>
       </View>
 
-      {/* 옵션 모달 */}
-      <Modal transparent visible={modalVisible} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>무엇을 추가할까요?</Text>
-            <Pressable style={styles.option} onPress={() => handleAction('폴더 생성')}>
-              <Text style={styles.optionText}>📁 폴더 생성</Text>
-            </Pressable>
-            <Pressable style={styles.option}>
-              <Text style={styles.optionText}>📄 PDF 업로드</Text>
-            </Pressable>
-            <Pressable style={styles.option}>
-              <Text style={styles.optionText}>🖼️ 이미지 업로드</Text>
-            </Pressable>
-            <Pressable onPress={() => setModalVisible(false)}>
-              <Text style={styles.cancelText}>닫기</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 폴더 생성 / 수정 모달 */}
       <Modal transparent visible={folderModalVisible} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -187,7 +163,7 @@ export default function FolderScreen() {
             />
             <TouchableOpacity
               style={styles.createButton}
-              onPress={editMode ? handleRenameFolder : handleCreateFolder}
+              onPress={editMode ? renameFolder : createFolder}
             >
               <Text style={styles.createButtonText}>
                 {editMode ? '변경' : '생성'}
@@ -239,7 +215,7 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#fff' },
   header: {
     alignItems: 'center',
-    flexDirection:'row',
+    flexDirection: 'row',
     height: 60,
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
@@ -250,7 +226,6 @@ const styles = StyleSheet.create({
   headerText: { fontSize: 20, fontWeight: 'bold', color: '#000' },
   scrollContent: { padding: 16 },
   folderRow: {
-    
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 33,
@@ -316,15 +291,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
-  option: {
-    paddingVertical: 12,
-    width: '100%',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  optionText: { fontSize: 16 },
-  cancelText: { marginTop: 16, color: '#999' },
   input: {
     width: '100%',
     height: 44,
@@ -341,4 +307,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   createButtonText: { color: '#fff', fontWeight: 'bold' },
+  cancelText: { marginTop: 16, color: '#999' },
 });
