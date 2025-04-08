@@ -91,27 +91,50 @@ const [folders, setFolders] = useState<Folder[]>([]);
   
 
 
-  const deleteFolder = (index: number) => {
-    const updated = [...folders];
-    updated.splice(index, 1);
-    setFolders(updated);
+  const deleteFolder = async (folderId: string) => {
+    try {
+      const res = await axios.post(`${API_BASE}/api/folders/delete`, { folderId });
+  
+      if (res.status === 200) {
+        const updated = folders.filter(folder => folder._id !== folderId);
+        setFolders(updated);
+      }
+    } catch (error: any) {
+      console.error('폴더 삭제 실패:', error.response?.data || error.message);
+    }
+  
     setOptionsVisible(null);
   };
+  
+  
 
-  const renameFolder = () => {
+  const renameFolder = async () => {
     if (folderName.trim() === '' || selectedIndex === null) return;
-    const updated = [...folders];
-    updated[selectedIndex] = {
-      ...updated[selectedIndex],
-      name: folderName,
-    };
-    
-    setFolders(updated);
+    const targetFolder = folders[selectedIndex];
+    if (!targetFolder) return;
+  
+    try {
+      const res = await axios.patch(`${API_BASE}/api/folders/rename`, {
+        folderId: targetFolder._id,
+        newName: folderName,
+      });
+  
+      if (res.status === 200) {
+        const updated = [...folders];
+        updated[selectedIndex] = { ...targetFolder, name: folderName };
+        setFolders(updated);
+      }
+  
+    } catch (error: any) {
+      console.error('이름 변경 실패:', error.response?.data || error.message);
+    }
+  
     setFolderName('');
     setSelectedIndex(null);
     setEditMode(false);
     setFolderModalVisible(false);
   };
+  
 
   
   return {

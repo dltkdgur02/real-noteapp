@@ -106,7 +106,7 @@ export default function FolderScreen() {
               >
                 <Text style={styles.dropdownOption}>이름 변경</Text>
               </Pressable>
-              <Pressable onPress={() => deleteFolder(index)}>
+              <Pressable onPress={() => deleteFolder(folder._id)}>
                 <Text style={styles.dropdownOption}>폴더 삭제</Text>
               </Pressable>
             </View>

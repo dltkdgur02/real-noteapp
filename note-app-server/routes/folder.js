@@ -62,6 +62,48 @@ router.get('/children', async (req, res) => {
   }
 });
 
+router.patch('/rename', async (req, res) => {
+  const { folderId, newName } = req.body;
+  try {
+    await Folder.findByIdAndUpdate(folderId, { name: newName });
+    res.status(200).json({ message: '이름 변경 성공' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: '이름 변경 실패' });
+  }
+});
+
+const deleteFolderAndChildren = async (folderId) => {
+  // 1. 하위 폴더들 가져오기
+  const children = await Folder.find({ parentId: folderId });
+
+  // 2. 각각 하위 폴더에 대해 재귀 삭제
+  for (const child of children) {
+    await deleteFolderAndChildren(child._id);
+  }
+
+  // 3. 본인 삭제
+  await Folder.findByIdAndDelete(folderId);
+};
+
+router.post('/delete', async (req, res) => {
+  const { folderId } = req.body;
+
+  if (!folderId) return res.status(400).json({ message: 'folderId가 필요합니다.' });
+
+  try {
+    await deleteFolderAndChildren(folderId);
+    res.status(200).json({ message: '상위 및 하위 폴더 삭제 완료' });
+  } catch (err) {
+    console.error('폴더 삭제 실패:', err);
+    res.status(500).json({ message: '폴더 삭제 실패' });
+  }
+});
+
+
+
+
+
 
 
 module.exports = router;
