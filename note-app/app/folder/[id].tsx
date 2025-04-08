@@ -51,6 +51,8 @@ export default function FolderScreen() {
     deleteFolder,
     selectedFolderId,
     setSelectedFolderId,
+    folderColor,
+    setFolderColor,
   } = useFolderManager();
 
   const currentFolder = folders.find(f => f._id === currentFolderId);
@@ -68,20 +70,63 @@ export default function FolderScreen() {
     }
   };
 
+  const colors = [
+    '#FFD700', // gold
+    '#FF7F50', // coral
+    '#87CEFA', // light blue
+    '#90EE90', // light green
+    '#DDA0DD', // plum
+    '#FF69B4', // hot pink
+    '#FFA500', // orange
+    '#6A5ACD', // slate blue
+    '#20B2AA', // light sea green
+    '#A0522D', // sienna
+    '#FF6347', // tomato
+    '#00CED1', // dark turquoise
+    '#BDB76B', // dark khaki
+    '#DC143C', // crimson
+  ];
+  
+
+  const renderColorOptions = () => (
+    <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
+      {colors.map(color => (
+        <TouchableOpacity
+          key={color}
+          onPress={() => setFolderColor(color)}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: color,
+            borderWidth: folderColor === color ? 2 : 0,
+            borderColor: '#000',
+          }}
+        />
+      ))}
+    </View>
+  );
+
   const renderChildFolders = () => {
     return folders
       .filter(folder => folder.parentId === currentFolderId)
       .map((folder, index) => (
         <View key={folder._id} style={styles.folderContainer}>
-          <TouchableOpacity
+        <TouchableOpacity
             style={styles.folderItem}
             onPress={() => {
               setSelectedFolderId(folder._id);
               router.push(`/folder/${folder._id}`);
             }}
           >
-            <FolderIcon width={150} height={150} />
-          </TouchableOpacity>
+            <View
+              style={[
+                styles.folderItem,
+              ]}
+            >
+              <FolderIcon width={150} height={150} color={folder.color || '#999'} />
+            </View>
+        </TouchableOpacity>
           <View style={styles.folderLabelRow}>
             <Text style={styles.folderText}>{folder.name}</Text>
             <TouchableOpacity
@@ -155,11 +200,11 @@ export default function FolderScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.folderRow}>
-            <TouchableOpacity style={styles.folderContainer} onPress={() => handleAction('폴더 생성')}>
-              <View style={styles.folderItem}>
-                <PlusIcon width={150} height={150} />
-              </View>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.folderContainer} onPress={() => handleAction('폴더 생성')}>
+            <View style={styles.folderItem}>
+              <PlusIcon width={150} height={150} />
+            </View>
+          </TouchableOpacity>
 
             {renderChildFolders()}
           </View>
@@ -178,6 +223,9 @@ export default function FolderScreen() {
               value={folderName}
               onChangeText={setFolderName}
             />
+            <Text style={{ fontWeight: 'bold', marginTop: 8 }}>폴더 색상 선택</Text>
+            {renderColorOptions()}
+
             <TouchableOpacity
               style={styles.createButton}
               onPress={editMode ? renameFolder : createFolder}

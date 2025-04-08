@@ -11,6 +11,7 @@ export function useFolderManager() {
   name: string;
   userId: string;
   parentId: string | null;
+  color?: string;
 };
 
 const [folders, setFolders] = useState<Folder[]>([]);
@@ -20,7 +21,9 @@ const [folders, setFolders] = useState<Folder[]>([]);
   const [folderModalVisible, setFolderModalVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState<number | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [folderColor, setFolderColor] = useState<string>('#fff');
 
+  
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -60,7 +63,9 @@ const [folders, setFolders] = useState<Folder[]>([]);
   const createFolder = async () => {
     if (folderName.trim() === '') return;
   
-    // ✅ 1. 폴더 생성 요청 전에 콘솔로 확인
+    // ✅ 폴더 색상 지정이 없거나 기본값이면 회색으로 대체
+    const colorToUse = folderColor && folderColor !== '#fff' ? folderColor : '#999';
+  
     console.log('📦 createFolder() 호출됨');
     console.log('userId:', userId);
     console.log('folderName:', folderName);
@@ -70,24 +75,28 @@ const [folders, setFolders] = useState<Folder[]>([]);
         userId,
         name: folderName,
         parentId: selectedFolderId,
+        color: colorToUse,
       });
+  
       const res = await axios.post(`${API_BASE}/api/folders/create`, {
         userId,
         name: folderName,
         parentId: selectedFolderId ?? null,
+        color: colorToUse,
       });
   
       if (res.status === 201) {
-        setFolders(prev => [...prev, res.data.folder]); 
+        setFolders(prev => [...prev, res.data.folder]);
         setFolderName('');
+        setFolderColor('#fff'); // 색상 초기화
         setFolderModalVisible(false);
-
         setSelectedFolderId(null);
       }
     } catch (error: any) {
       console.error('폴더 생성 실패:', error.response?.data || error.message);
     }
   };
+  
   
 
 
@@ -135,6 +144,32 @@ const [folders, setFolders] = useState<Folder[]>([]);
     setFolderModalVisible(false);
   };
   
+  const updateFolderColor = async () => {
+    if (selectedIndex === null) return;
+    const targetFolder = folders[selectedIndex];
+    if (!targetFolder) return;
+  
+    try {
+      const res = await axios.patch(`${API_BASE}/api/folders/color`, {
+        folderId: targetFolder._id,
+        newColor: folderColor,
+      });
+  
+      if (res.status === 200) {
+        const updated = [...folders];
+        updated[selectedIndex] = { ...targetFolder, color: folderColor };
+        setFolders(updated);
+      }
+    } catch (error: any) {
+      console.error('색상 변경 실패:', error.response?.data || error.message);
+    }
+  
+    setSelectedIndex(null);
+    setFolderColor('#fff');
+    setFolderModalVisible(false);
+  };
+  
+  
 
   
   return {
@@ -153,8 +188,11 @@ const [folders, setFolders] = useState<Folder[]>([]);
     createFolder,
     deleteFolder,
     renameFolder,
-    selectedFolderId,          // ✅ 추가
-    setSelectedFolderId        // ✅ 추가
+    selectedFolderId,
+    setSelectedFolderId,
+    folderColor,
+    setFolderColor,
+    updateFolderColor,
   };
   
 }

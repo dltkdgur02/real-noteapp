@@ -23,6 +23,8 @@ export default function DocumentTab() {
     createFolder,
     deleteFolder,
     renameFolder,
+    folderColor,
+    setFolderColor,
   } = useFolderManager();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -33,6 +35,43 @@ export default function DocumentTab() {
     }
     setModalVisible(false);
   };
+  const colors = [
+    '#FFD700', // gold
+    '#FF7F50', // coral
+    '#87CEFA', // light blue
+    '#90EE90', // light green
+    '#DDA0DD', // plum
+    '#FF69B4', // hot pink
+    '#FFA500', // orange
+    '#6A5ACD', // slate blue
+    '#20B2AA', // light sea green
+    '#A0522D', // sienna
+    '#FF6347', // tomato
+    '#00CED1', // dark turquoise
+    '#BDB76B', // dark khaki
+    '#DC143C', // crimson
+  ];
+  
+
+  const renderColorOptions = () => (
+    <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
+      {colors.map(color => (
+        <TouchableOpacity
+          key={color}
+          onPress={() => setFolderColor(color)}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: color,
+            borderWidth: folderColor === color ? 2 : 0,
+            borderColor: '#000',
+          }}
+        />
+      ))}
+    </View>
+  );
+
 
   return (
     <View style={styles.wrapper}>
@@ -55,10 +94,12 @@ export default function DocumentTab() {
             .map((folder, index) => (
               <View key={folder._id} style={styles.folderContainer}>
                 <TouchableOpacity
-                  style={styles.folderItem}
+                  style={[
+                    styles.folderItem,
+                  ]}
                   onPress={() => router.push(`/folder/${folder._id}`)}
                 >
-                  <FolderIcon width={150} height={150} />
+                  <FolderIcon width={150} height={150} color={folder.color || '#999'} />
                 </TouchableOpacity>
                 <View style={styles.folderLabelRow}>
                   <Text style={styles.folderText}>{folder.name}</Text>
@@ -126,6 +167,8 @@ export default function DocumentTab() {
               value={folderName}
               onChangeText={setFolderName}
             />
+            <Text style={{ fontWeight: 'bold', marginTop: 8 }}>폴더 색상 선택</Text>
+            {renderColorOptions()}
             <TouchableOpacity
               style={styles.createButton}
               onPress={editMode ? renameFolder : createFolder}

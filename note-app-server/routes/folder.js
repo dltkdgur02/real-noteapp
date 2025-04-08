@@ -21,7 +21,7 @@ router.get('/list', async (req, res) => {
 });
 
 router.post('/create', async (req, res) => {
-  const { name, userId, parentId } = req.body;
+  const { name, userId, parentId, color } = req.body; // ✅ color 추가!
 
   if (!name || !userId) {
     return res.status(400).json({ message: 'name과 userId는 필수입니다.' });
@@ -31,6 +31,7 @@ router.post('/create', async (req, res) => {
     const folderData = {
       name,
       userId,
+      color: color || '#fff', // ✅ 기본 색상 처리
       parentId: parentId && mongoose.Types.ObjectId.isValid(parentId)
         ? new mongoose.Types.ObjectId(parentId)
         : null,
@@ -97,6 +98,22 @@ router.post('/delete', async (req, res) => {
   } catch (err) {
     console.error('폴더 삭제 실패:', err);
     res.status(500).json({ message: '폴더 삭제 실패' });
+  }
+});
+
+router.patch('/color', async (req, res) => {
+  const { folderId, newColor } = req.body;
+
+  if (!folderId || !newColor) {
+    return res.status(400).json({ message: 'folderId와 newColor가 필요합니다.' });
+  }
+
+  try {
+    await Folder.findByIdAndUpdate(folderId, { color: newColor });
+    res.status(200).json({ message: '색상 변경 완료' });
+  } catch (err) {
+    console.error('색상 변경 실패:', err);
+    res.status(500).json({ message: '색상 변경 실패' });
   }
 });
 
