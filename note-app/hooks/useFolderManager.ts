@@ -144,30 +144,27 @@ const [folders, setFolders] = useState<Folder[]>([]);
     setFolderModalVisible(false);
   };
   
-  const updateFolderColor = async () => {
-    if (selectedIndex === null) return;
-    const targetFolder = folders[selectedIndex];
-    if (!targetFolder) return;
-  
+  const updateFolderColor = async (folderId: string, newColor: string) => {
     try {
       const res = await axios.patch(`${API_BASE}/api/folders/color`, {
-        folderId: targetFolder._id,
-        newColor: folderColor,
+        folderId,
+        newColor,
       });
   
       if (res.status === 200) {
-        const updated = [...folders];
-        updated[selectedIndex] = { ...targetFolder, color: folderColor };
+        const updated = folders.map(folder =>
+          folder._id === folderId ? { ...folder, color: newColor } : folder
+        );
         setFolders(updated);
       }
     } catch (error: any) {
       console.error('색상 변경 실패:', error.response?.data || error.message);
     }
   
-    setSelectedIndex(null);
+    setOptionsVisible(null);
     setFolderColor('#fff');
-    setFolderModalVisible(false);
   };
+  
   
   
 

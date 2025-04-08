@@ -18,9 +18,9 @@ export default function FolderScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const currentFolderId = typeof id === 'string' ? id : null;
+
   const buildBreadcrumbString = (folderId: string | null): string => {
     const names: string[] = [];
-  
     let currentId = folderId;
     while (currentId) {
       const folder = folders.find(f => f._id === currentId);
@@ -28,11 +28,8 @@ export default function FolderScreen() {
       names.unshift(folder.name);
       currentId = folder.parentId;
     }
-  
     return names.join(' → ');
   };
-  
-  
 
   const {
     folders,
@@ -53,6 +50,7 @@ export default function FolderScreen() {
     setSelectedFolderId,
     folderColor,
     setFolderColor,
+    updateFolderColor,
   } = useFolderManager();
 
   const currentFolder = folders.find(f => f._id === currentFolderId);
@@ -71,29 +69,25 @@ export default function FolderScreen() {
   };
 
   const colors = [
-    '#FFD700', // gold
-    '#FF7F50', // coral
-    '#87CEFA', // light blue
-    '#90EE90', // light green
-    '#DDA0DD', // plum
-    '#FF69B4', // hot pink
-    '#FFA500', // orange
-    '#6A5ACD', // slate blue
-    '#20B2AA', // light sea green
-    '#A0522D', // sienna
-    '#FF6347', // tomato
-    '#00CED1', // dark turquoise
-    '#BDB76B', // dark khaki
-    '#DC143C', // crimson
+    '#999',
+    '#FFD700', '#FF7F50', '#87CEFA', '#90EE90', '#DDA0DD', '#FF69B4', '#FFA500', '#6A5ACD', '#20B2AA', '#A0522D', '#FF6347', '#00CED1', '#BDB76B', '#DC143C'
   ];
-  
 
   const renderColorOptions = () => (
-    <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 }}>
       {colors.map(color => (
         <TouchableOpacity
           key={color}
-          onPress={() => setFolderColor(color)}
+          onPress={() => {
+            if (editMode && selectedIndex !== null) {
+              const targetFolder = folders[selectedIndex];
+              if (targetFolder) {
+                updateFolderColor(targetFolder._id, color);
+              }
+            } else {
+              setFolderColor(color);
+            }
+          }}
           style={{
             width: 30,
             height: 30,
@@ -101,43 +95,34 @@ export default function FolderScreen() {
             backgroundColor: color,
             borderWidth: folderColor === color ? 2 : 0,
             borderColor: '#000',
+            marginBottom: 8,
           }}
         />
       ))}
     </View>
   );
+  
 
   const renderChildFolders = () => {
     return folders
       .filter(folder => folder.parentId === currentFolderId)
       .map((folder, index) => (
         <View key={folder._id} style={styles.folderContainer}>
-        <TouchableOpacity
+          <TouchableOpacity
             style={styles.folderItem}
             onPress={() => {
               setSelectedFolderId(folder._id);
               router.push(`/folder/${folder._id}`);
             }}
           >
-            <View
-              style={[
-                styles.folderItem,
-              ]}
-            >
-              <FolderIcon width={150} height={150} color={folder.color || '#999'} />
-            </View>
-        </TouchableOpacity>
+            <FolderIcon width={150} height={150} color={folder.color || '#999'} />
+          </TouchableOpacity>
           <View style={styles.folderLabelRow}>
             <Text style={styles.folderText}>{folder.name}</Text>
-            <TouchableOpacity
-              onPress={() =>
-                setOptionsVisible(optionsVisible === index ? null : index)
-              }
-            >
+            <TouchableOpacity onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}>
               <Text style={styles.dropdown}>▼</Text>
             </TouchableOpacity>
           </View>
-
           {optionsVisible === index && (
             <View style={styles.dropdownBox}>
               <Pressable
@@ -153,6 +138,17 @@ export default function FolderScreen() {
               </Pressable>
               <Pressable onPress={() => deleteFolder(folder._id)}>
                 <Text style={styles.dropdownOption}>폴더 삭제</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setSelectedIndex(index);
+                  setEditMode(false);
+                  setFolderModalVisible(true);
+                  setFolderColor(folder.color || '#FFD700');
+                  setOptionsVisible(null);
+                }}
+              >
+                <Text style={styles.dropdownOption}>색상 변경</Text>
               </Pressable>
             </View>
           )}
@@ -177,70 +173,52 @@ export default function FolderScreen() {
           <Text style={styles.tabText}>Ai 기능</Text>
         </TouchableOpacity>
       </View>
-
       <View style={styles.wrapper}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/main?tab=document');
-              }
-            }}
-          >
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/main?tab=document')}>
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
           <View style={styles.titleWrapper}>
             <Text style={styles.headerText}>📁 {buildBreadcrumbString(currentFolderId)}</Text>
           </View>
         </View>
-
-     
-
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.folderRow}>
-          <TouchableOpacity style={styles.folderContainer} onPress={() => handleAction('폴더 생성')}>
-            <View style={styles.folderItem}>
-              <PlusIcon width={150} height={150} />
-            </View>
-          </TouchableOpacity>
-
+            <TouchableOpacity style={styles.folderContainer} onPress={() => handleAction('폴더 생성')}>
+              <View style={styles.folderItem}>
+                <PlusIcon width={150} height={150} />
+              </View>
+            </TouchableOpacity>
             {renderChildFolders()}
           </View>
         </ScrollView>
       </View>
-
       <Modal transparent visible={folderModalVisible} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editMode ? '이름 변경' : '폴더 이름을 입력하세요'}
-            </Text>
-            <TextInput
-              placeholder="예: 수학노트"
-              style={styles.input}
-              value={folderName}
-              onChangeText={setFolderName}
-            />
+            <Text style={styles.modalTitle}>{editMode ? '이름 변경' : '폴더 이름을 입력하세요'}</Text>
+            {!editMode && (
+              <TextInput
+                placeholder="예: 수학노트"
+                style={styles.input}
+                value={folderName}
+                onChangeText={setFolderName}
+              />
+            )}
             <Text style={{ fontWeight: 'bold', marginTop: 8 }}>폴더 색상 선택</Text>
             {renderColorOptions()}
-
             <TouchableOpacity
               style={styles.createButton}
               onPress={editMode ? renameFolder : createFolder}
             >
-              <Text style={styles.createButtonText}>
-                {editMode ? '변경' : '생성'}
-              </Text>
+              <Text style={styles.createButtonText}>{editMode ? '변경' : '생성'}</Text>
             </TouchableOpacity>
-            <Pressable
-              onPress={() => {
-                setFolderModalVisible(false);
-                setEditMode(false);
-                setFolderName('');
-              }}
-            >
+            <Pressable onPress={() => {
+              setFolderModalVisible(false);
+              setEditMode(false);
+              setFolderName('');
+              setFolderColor('#FFD700');
+            }}>
               <Text style={styles.cancelText}>닫기</Text>
             </Pressable>
           </View>
@@ -373,17 +351,4 @@ const styles = StyleSheet.create({
   },
   createButtonText: { color: '#fff', fontWeight: 'bold' },
   cancelText: { marginTop: 16, color: '#999' },
-  breadcrumbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 8,
-    flexWrap: 'wrap',
-  },
-  
-  breadcrumbText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  
 });

@@ -25,9 +25,11 @@ export default function DocumentTab() {
     renameFolder,
     folderColor,
     setFolderColor,
+    updateFolderColor,
   } = useFolderManager();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [colorEditMode, setColorEditMode] = useState(false);
 
   const handleAction = (action: string) => {
     if (action === '폴더 생성') {
@@ -35,43 +37,31 @@ export default function DocumentTab() {
     }
     setModalVisible(false);
   };
-  const colors = [
-    '#FFD700', // gold
-    '#FF7F50', // coral
-    '#87CEFA', // light blue
-    '#90EE90', // light green
-    '#DDA0DD', // plum
-    '#FF69B4', // hot pink
-    '#FFA500', // orange
-    '#6A5ACD', // slate blue
-    '#20B2AA', // light sea green
-    '#A0522D', // sienna
-    '#FF6347', // tomato
-    '#00CED1', // dark turquoise
-    '#BDB76B', // dark khaki
-    '#DC143C', // crimson
-  ];
-  
 
-  const renderColorOptions = () => (
-    <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
+  const colors = [
+    '#999', '#FFD700', '#FF7F50', '#87CEFA', '#90EE90', '#DDA0DD',
+    '#FF69B4', '#FFA500', '#6A5ACD', '#20B2AA', '#A0522D',
+    '#FF6347', '#00CED1', '#BDB76B', '#DC143C',
+  ];
+
+  const renderColorOptions = (onSelect: (color: string) => void, selected?: string) => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 }}>
       {colors.map(color => (
         <TouchableOpacity
           key={color}
-          onPress={() => setFolderColor(color)}
+          onPress={() => onSelect(color)}
           style={{
             width: 30,
             height: 30,
             borderRadius: 15,
             backgroundColor: color,
-            borderWidth: folderColor === color ? 2 : 0,
+            borderWidth: selected === color ? 2 : 0,
             borderColor: '#000',
           }}
         />
       ))}
     </View>
   );
-
 
   return (
     <View style={styles.wrapper}>
@@ -81,59 +71,59 @@ export default function DocumentTab() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.folderRow}>
-          {/* 플러스 버튼 */}
           <TouchableOpacity style={styles.folderContainer} onPress={() => setModalVisible(true)}>
             <View style={styles.folderItem}>
               <PlusIcon width={150} height={150} />
             </View>
           </TouchableOpacity>
 
-          {/* ✅ 최상위 폴더만 렌더링 */}
-          {folders
-            .filter(folder => folder.parentId === null)
-            .map((folder, index) => (
-              <View key={folder._id} style={styles.folderContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.folderItem,
-                  ]}
-                  onPress={() => router.push(`/folder/${folder._id}`)}
-                >
-                  <FolderIcon width={150} height={150} color={folder.color || '#999'} />
+          {folders.filter(f => f.parentId === null).map((folder, index) => (
+            <View key={folder._id} style={styles.folderContainer}>
+              <TouchableOpacity
+                style={styles.folderItem}
+                onPress={() => router.push(`/folder/${folder._id}`)}
+              >
+                <FolderIcon width={150} height={150} color={folder.color || '#999'} />
+              </TouchableOpacity>
+              <View style={styles.folderLabelRow}>
+                <Text style={styles.folderText}>{folder.name}</Text>
+                <TouchableOpacity onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}>
+                  <Text style={styles.dropdown}>▼</Text>
                 </TouchableOpacity>
-                <View style={styles.folderLabelRow}>
-                  <Text style={styles.folderText}>{folder.name}</Text>
-                  <TouchableOpacity
-                    onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}
-                  >
-                    <Text style={styles.dropdown}>▼</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {optionsVisible === index && (
-                  <View style={styles.dropdownBox}>
-                    <Pressable
-                      onPress={() => {
-                        setSelectedIndex(index);
-                        setEditMode(true);
-                        setFolderName(folder.name);
-                        setFolderModalVisible(true);
-                        setOptionsVisible(null);
-                      }}
-                    >
-                      <Text style={styles.dropdownOption}>이름 변경</Text>
-                    </Pressable>
-                    <Pressable onPress={() => deleteFolder(folder._id)}>
-                      <Text style={styles.dropdownOption}>폴더 삭제</Text>
-                    </Pressable>
-                  </View>
-                )}
               </View>
-            ))}
+
+              {optionsVisible === index && (
+                <View style={styles.dropdownBox}>
+                  <Pressable onPress={() => {
+                    setSelectedIndex(index);
+                    setEditMode(true);
+                    setFolderName(folder.name);
+                    setFolderColor(folder.color || '#FFD700');
+                    setFolderModalVisible(true);
+                    setOptionsVisible(null);
+                  }}>
+                    <Text style={styles.dropdownOption}>이름 변경</Text>
+                  </Pressable>
+                  <Pressable onPress={() => deleteFolder(folder._id)}>
+                    <Text style={styles.dropdownOption}>폴더 삭제</Text>
+                  </Pressable>
+                  <Pressable onPress={() => {
+                    setSelectedIndex(index);
+                    setFolderColor(folder.color || '#FFD700');
+                    setColorEditMode(true);
+                    setFolderModalVisible(true);
+                    setOptionsVisible(null);
+                  }}>
+                    <Text style={styles.dropdownOption}>색상 변경</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          ))}
         </View>
       </ScrollView>
 
-      {/* 옵션 모달 */}
+      {/* 플러스 메뉴 */}
       <Modal transparent visible={modalVisible} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -141,12 +131,8 @@ export default function DocumentTab() {
             <Pressable style={styles.option} onPress={() => handleAction('폴더 생성')}>
               <Text style={styles.optionText}>📁 폴더 생성</Text>
             </Pressable>
-            <Pressable style={styles.option}>
-              <Text style={styles.optionText}>📄 PDF 업로드</Text>
-            </Pressable>
-            <Pressable style={styles.option}>
-              <Text style={styles.optionText}>🖼️ 이미지 업로드</Text>
-            </Pressable>
+            <Pressable style={styles.option}><Text style={styles.optionText}>📄 PDF 업로드</Text></Pressable>
+            <Pressable style={styles.option}><Text style={styles.optionText}>🖼️ 이미지 업로드</Text></Pressable>
             <Pressable onPress={() => setModalVisible(false)}>
               <Text style={styles.cancelText}>닫기</Text>
             </Pressable>
@@ -154,31 +140,40 @@ export default function DocumentTab() {
         </View>
       </Modal>
 
-      {/* 폴더 생성/수정 모달 */}
+      {/* 폴더 생성/수정/색상 변경 모달 */}
       <Modal transparent visible={folderModalVisible} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editMode ? '이름 변경' : '폴더 이름을 입력하세요'}
-            </Text>
-            <TextInput
-              placeholder="예: 수학노트"
-              style={styles.input}
-              value={folderName}
-              onChangeText={setFolderName}
-            />
+            {!colorEditMode && (
+              <>
+                <Text style={styles.modalTitle}>{editMode ? '이름 변경' : '폴더 이름을 입력하세요'}</Text>
+                <TextInput
+                  placeholder="예: 수학노트"
+                  style={styles.input}
+                  value={folderName}
+                  onChangeText={setFolderName}
+                />
+              </>
+            )}
             <Text style={{ fontWeight: 'bold', marginTop: 8 }}>폴더 색상 선택</Text>
-            {renderColorOptions()}
-            <TouchableOpacity
-              style={styles.createButton}
-              onPress={editMode ? renameFolder : createFolder}
-            >
-              <Text style={styles.createButtonText}>
-                {editMode ? '변경' : '생성'}
-              </Text>
-            </TouchableOpacity>
+            {renderColorOptions(colorEditMode ? async (color) => {
+              if (selectedIndex !== null) {
+                const folder = folders[selectedIndex];
+                await updateFolderColor(folder._id, color);
+              }
+              setFolderModalVisible(false);
+              setColorEditMode(false);
+            } : setFolderColor, folderColor)}
+
+            {!colorEditMode && (
+              <TouchableOpacity style={styles.createButton} onPress={editMode ? renameFolder : createFolder}>
+                <Text style={styles.createButtonText}>{editMode ? '변경' : '생성'}</Text>
+              </TouchableOpacity>
+            )}
+
             <Pressable onPress={() => {
               setFolderModalVisible(false);
+              setColorEditMode(false);
               setEditMode(false);
               setFolderName('');
             }}>
@@ -191,7 +186,6 @@ export default function DocumentTab() {
   );
 }
 
-
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#fff' },
   header: {
@@ -201,9 +195,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   headerText: { fontSize: 26, fontWeight: 'bold', color: '#000' },
-  scrollContent: {
-    padding: 16,
-  },
+  scrollContent: { padding: 16 },
   folderRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -233,9 +225,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  dropdown: {
-    fontSize: 16,
-  },
+  dropdown: { fontSize: 16 },
   dropdownBox: {
     marginTop: 4,
     padding: 8,
