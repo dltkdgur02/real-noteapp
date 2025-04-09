@@ -164,6 +164,25 @@ const [folders, setFolders] = useState<Folder[]>([]);
     setOptionsVisible(null);
     setFolderColor('#fff');
   };
+
+  const moveFolder = async (sourceId: string, targetId: string) => {
+    try {
+      const res = await axios.patch(`${API_BASE}/api/folders/move`, {
+        folderId: sourceId,
+        newParentId: targetId,
+      });
+  
+      if (res.status === 200) {
+        const updated = folders.map(folder =>
+          folder._id === sourceId ? { ...folder, parentId: targetId } : folder
+        );
+        setFolders(updated);
+      }
+    } catch (error: any) {
+      console.error('폴더 이동 실패:', error.response?.data || error.message);
+    }
+  };
+  
   
   
   
@@ -190,6 +209,7 @@ const [folders, setFolders] = useState<Folder[]>([]);
     folderColor,
     setFolderColor,
     updateFolderColor,
+    moveFolder
   };
   
 }
