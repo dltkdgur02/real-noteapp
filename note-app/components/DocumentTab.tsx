@@ -1,4 +1,14 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, TextInput, ScrollView } from 'react-native';
+// DocumentTab.tsx
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Pressable,
+  TextInput,
+  ScrollView,
+} from 'react-native';
 import { useState } from 'react';
 import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
@@ -26,16 +36,42 @@ export default function DocumentTab() {
     folderColor,
     setFolderColor,
     updateFolderColor,
+    moveFolder,
   } = useFolderManager();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [colorEditMode, setColorEditMode] = useState(false);
+  const [moveModalVisible, setMoveModalVisible] = useState(false);
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
 
   const handleAction = (action: string) => {
     if (action === '폴더 생성') {
       openCreateModal();
     }
     setModalVisible(false);
+  };
+
+  const handleMoveFolder = (targetId: string) => {
+    if (movingFolderId && movingFolderId !== targetId) {
+      moveFolder(movingFolderId, targetId);
+    }
+    setMovingFolderId(null);
+    setMoveModalVisible(false);
+  };
+
+  const renderFolderTree = (parentId: string | null = null, depth = 0) => {
+    return folders
+      .filter(folder => folder.parentId === parentId)
+      .map(folder => (
+        <TouchableOpacity
+          key={folder._id}
+          onPress={() => handleMoveFolder(folder._id)}
+          style={{ paddingVertical: 8, paddingLeft: depth * 16 }}
+        >
+          <Text>📁 {folder.name}</Text>
+          {renderFolderTree(folder._id, depth + 1)}
+        </TouchableOpacity>
+      ));
   };
 
   const colors = [
@@ -116,6 +152,13 @@ export default function DocumentTab() {
                   }}>
                     <Text style={styles.dropdownOption}>색상 변경</Text>
                   </Pressable>
+                  <Pressable onPress={() => {
+                    setMovingFolderId(folder._id);
+                    setMoveModalVisible(true);
+                    setOptionsVisible(null);
+                  }}>
+                    <Text style={styles.dropdownOption}>폴더 이동</Text>
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -178,6 +221,21 @@ export default function DocumentTab() {
               setFolderName('');
             }}>
               <Text style={styles.cancelText}>닫기</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 폴더 이동 모달 */}
+      <Modal transparent visible={moveModalVisible} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>폴더를 어디로 이동할까요?</Text>
+            <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+              {renderFolderTree(null)}
+            </ScrollView>
+            <Pressable onPress={() => setMoveModalVisible(false)}>
+              <Text style={styles.cancelText}>취소</Text>
             </Pressable>
           </View>
         </View>

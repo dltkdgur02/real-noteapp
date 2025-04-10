@@ -117,6 +117,28 @@ router.patch('/color', async (req, res) => {
   }
 });
 
+router.patch('/move', async (req, res) => {
+  const { folderId, newParentId } = req.body;
+
+  try {
+    if (!folderId) {
+      return res.status(400).json({ message: 'folderId가 필요합니다.' });
+    }
+
+    // parentId는 null이 될 수 있음 (최상위 폴더로 이동할 때)
+    await Folder.findByIdAndUpdate(folderId, {
+      parentId: newParentId || null,
+    });
+
+    res.status(200).json({ message: '폴더 이동 성공' });
+  } catch (error) {
+    console.error('폴더 이동 오류:', error);
+    res.status(500).json({ message: '서버 오류' });
+  }
+});
+
+
+
 
 
 

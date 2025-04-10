@@ -20,6 +20,8 @@ export default function FolderScreen() {
   const currentFolderId = typeof id === 'string' ? id : null;
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [moveModalVisible, setMoveModalVisible] = useState(false);
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
 
   const {
     folders,
@@ -41,9 +43,8 @@ export default function FolderScreen() {
     folderColor,
     setFolderColor,
     updateFolderColor,
+    moveFolder,
   } = useFolderManager();
-
-  const currentFolder = folders.find(f => f._id === currentFolderId);
 
   useEffect(() => {
     if (currentFolderId) {
@@ -68,8 +69,30 @@ export default function FolderScreen() {
       setSelectedFolderId(currentFolderId);
       setFolderModalVisible(true);
     }
-    // PDF 업로드나 이미지 업로드는 여기서 처리 가능
     setActionModalVisible(false);
+  };
+
+  const handleMoveFolder = (targetId: string) => {
+    if (movingFolderId && movingFolderId !== targetId) {
+      moveFolder(movingFolderId, targetId);
+    }
+    setMoveModalVisible(false);
+    setMovingFolderId(null);
+  };
+
+  const renderFolderTree = (parentId: string | null = null, depth = 0) => {
+    return folders
+      .filter(f => f.parentId === parentId)
+      .map(folder => (
+        <TouchableOpacity
+          key={folder._id}
+          onPress={() => handleMoveFolder(folder._id)}
+          style={{ paddingVertical: 8, paddingLeft: depth * 16 }}
+        >
+          <Text>📁 {folder.name}</Text>
+          {renderFolderTree(folder._id, depth + 1)}
+        </TouchableOpacity>
+      ));
   };
 
   const renderChildFolders = () => {
@@ -79,10 +102,7 @@ export default function FolderScreen() {
         <View key={folder._id} style={styles.folderContainer}>
           <TouchableOpacity
             style={styles.folderItem}
-            onPress={() => {
-              setSelectedFolderId(folder._id);
-              router.push(`/folder/${folder._id}`);
-            }}
+            onPress={() => router.push(`/folder/${folder._id}`)}
           >
             <FolderIcon width={150} height={150} color={folder.color || '#999'} />
           </TouchableOpacity>
@@ -109,11 +129,18 @@ export default function FolderScreen() {
               <Pressable onPress={() => {
                 setSelectedIndex(index);
                 setEditMode(false);
-                setFolderModalVisible(true);
                 setFolderColor(folder.color || '#FFD700');
+                setFolderModalVisible(true);
                 setOptionsVisible(null);
               }}>
                 <Text style={styles.dropdownOption}>색상 변경</Text>
+              </Pressable>
+              <Pressable onPress={() => {
+                setMovingFolderId(folder._id);
+                setMoveModalVisible(true);
+                setOptionsVisible(null);
+              }}>
+                <Text style={styles.dropdownOption}>폴더 이동</Text>
               </Pressable>
             </View>
           )}
@@ -121,35 +148,8 @@ export default function FolderScreen() {
       ));
   };
 
-  const renderColorOptions = () => (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 }}>
-      {[
-        '#999', '#FFD700', '#FF7F50', '#87CEFA', '#90EE90',
-        '#DDA0DD', '#FF69B4', '#FFA500', '#6A5ACD', '#20B2AA',
-        '#A0522D', '#FF6347', '#00CED1', '#BDB76B', '#DC143C',
-      ].map(color => (
-        <TouchableOpacity
-          key={color}
-          onPress={() => {
-            if (editMode && selectedIndex !== null) {
-              const target = folders[selectedIndex];
-              updateFolderColor(target._id, color);
-            } else {
-              setFolderColor(color);
-            }
-          }}
-          style={{
-            width: 30, height: 30, borderRadius: 15, backgroundColor: color,
-            borderWidth: folderColor === color ? 2 : 0, borderColor: '#000', margin: 4,
-          }}
-        />
-      ))}
-    </View>
-  );
-
   return (
     <View style={styles.container}>
-      {/* 사이드바 */}
       <View style={styles.sidebar}>
         <Text style={styles.sidebarTitle}>📝 Note-App</Text>
         {['문서', '즐겨찾기', '검색', 'Ai 기능'].map(tab => (
@@ -159,7 +159,6 @@ export default function FolderScreen() {
         ))}
       </View>
 
-      {/* 본문 */}
       <View style={styles.wrapper}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/main?tab=document')}>
@@ -182,7 +181,7 @@ export default function FolderScreen() {
         </ScrollView>
       </View>
 
-      {/* ➕ 플러스 버튼 클릭 시 나오는 모달 */}
+      {/* 폴더 추가 모달 */}
       <Modal transparent visible={actionModalVisible} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -203,7 +202,22 @@ export default function FolderScreen() {
         </View>
       </Modal>
 
-      {/* 폴더 생성 / 수정 / 색상 변경 모달 */}
+      {/* 폴더 이동 모달 */}
+      <Modal transparent visible={moveModalVisible} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>폴더를 어디로 이동할까요?</Text>
+            <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+              {renderFolderTree()}
+            </ScrollView>
+            <Pressable onPress={() => setMoveModalVisible(false)}>
+              <Text style={styles.cancelText}>취소</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 폴더 생성/수정/색상 모달 */}
       <Modal transparent visible={folderModalVisible} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -217,7 +231,21 @@ export default function FolderScreen() {
               />
             )}
             <Text style={{ fontWeight: 'bold', marginTop: 8 }}>폴더 색상 선택</Text>
-            {renderColorOptions()}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
+              {['#999', '#FFD700', '#FF7F50', '#87CEFA', '#90EE90', '#DDA0DD', '#FF69B4', '#FFA500', '#6A5ACD', '#20B2AA', '#A0522D', '#FF6347', '#00CED1', '#BDB76B', '#DC143C']
+                .map(color => (
+                  <TouchableOpacity
+                    key={color}
+                    onPress={() => setFolderColor(color)}
+                    style={{
+                      width: 30, height: 30, borderRadius: 15,
+                      backgroundColor: color,
+                      borderWidth: folderColor === color ? 2 : 0,
+                      borderColor: '#000', margin: 4
+                    }}
+                  />
+                ))}
+            </View>
             <TouchableOpacity style={styles.createButton} onPress={editMode ? renameFolder : createFolder}>
               <Text style={styles.createButtonText}>{editMode ? '변경' : '생성'}</Text>
             </TouchableOpacity>
