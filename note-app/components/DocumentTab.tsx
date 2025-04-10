@@ -1,12 +1,8 @@
-// DocumentTab.tsx
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
-  Pressable,
-  TextInput,
   ScrollView,
 } from 'react-native';
 import { useState } from 'react';
@@ -14,6 +10,11 @@ import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
 import { useRouter } from 'expo-router';
 import { useFolderManager } from '../hooks/useFolderManager';
+
+// 분리한 모달 컴포넌트 import
+import AddOptionsModal from '@/components/Modals/AddOptionsModal'
+import FolderFormModal from '@/components/Modals/FolderFormModal';
+import FolderMoveModal from '@/components/Modals/FolderMoveModal';
 
 export default function DocumentTab() {
   const router = useRouter();
@@ -39,65 +40,18 @@ export default function DocumentTab() {
     moveFolder,
   } = useFolderManager();
 
-  const [modalVisible, setModalVisible] = useState(false);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
   const [colorEditMode, setColorEditMode] = useState(false);
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
 
-  const handleAction = (action: string) => {
-    if (action === '폴더 생성') {
-      openCreateModal();
-    }
-    setModalVisible(false);
-  };
-
-  const handleMoveFolder = (targetId: string) => {
-    if (movingFolderId && movingFolderId !== targetId) {
+  const handleMove = (targetId: string) => {
+    if (movingFolderId && targetId !== movingFolderId) {
       moveFolder(movingFolderId, targetId);
     }
-    setMovingFolderId(null);
     setMoveModalVisible(false);
+    setMovingFolderId(null);
   };
-
-  const renderFolderTree = (parentId: string | null = null, depth = 0) => {
-    return folders
-      .filter(folder => folder.parentId === parentId)
-      .map(folder => (
-        <TouchableOpacity
-          key={folder._id}
-          onPress={() => handleMoveFolder(folder._id)}
-          style={{ paddingVertical: 8, paddingLeft: depth * 16 }}
-        >
-          <Text>📁 {folder.name}</Text>
-          {renderFolderTree(folder._id, depth + 1)}
-        </TouchableOpacity>
-      ));
-  };
-
-  const colors = [
-    '#999', '#FFD700', '#FF7F50', '#87CEFA', '#90EE90', '#DDA0DD',
-    '#FF69B4', '#FFA500', '#6A5ACD', '#20B2AA', '#A0522D',
-    '#FF6347', '#00CED1', '#BDB76B', '#DC143C',
-  ];
-
-  const renderColorOptions = (onSelect: (color: string) => void, selected?: string) => (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 }}>
-      {colors.map(color => (
-        <TouchableOpacity
-          key={color}
-          onPress={() => onSelect(color)}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: color,
-            borderWidth: selected === color ? 2 : 0,
-            borderColor: '#000',
-          }}
-        />
-      ))}
-    </View>
-  );
 
   return (
     <View style={styles.wrapper}>
@@ -107,7 +61,7 @@ export default function DocumentTab() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.folderRow}>
-          <TouchableOpacity style={styles.folderContainer} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity style={styles.folderContainer} onPress={() => setActionModalVisible(true)}>
             <View style={styles.folderItem}>
               <PlusIcon width={150} height={150} />
             </View>
@@ -130,7 +84,7 @@ export default function DocumentTab() {
 
               {optionsVisible === index && (
                 <View style={styles.dropdownBox}>
-                  <Pressable onPress={() => {
+                  <TouchableOpacity onPress={() => {
                     setSelectedIndex(index);
                     setEditMode(true);
                     setFolderName(folder.name);
@@ -139,26 +93,26 @@ export default function DocumentTab() {
                     setOptionsVisible(null);
                   }}>
                     <Text style={styles.dropdownOption}>이름 변경</Text>
-                  </Pressable>
-                  <Pressable onPress={() => deleteFolder(folder._id)}>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteFolder(folder._id)}>
                     <Text style={styles.dropdownOption}>폴더 삭제</Text>
-                  </Pressable>
-                  <Pressable onPress={() => {
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
                     setSelectedIndex(index);
-                    setFolderColor(folder.color || '#FFD700');
                     setColorEditMode(true);
                     setFolderModalVisible(true);
+                    setFolderColor(folder.color || '#FFD700');
                     setOptionsVisible(null);
                   }}>
                     <Text style={styles.dropdownOption}>색상 변경</Text>
-                  </Pressable>
-                  <Pressable onPress={() => {
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
                     setMovingFolderId(folder._id);
                     setMoveModalVisible(true);
                     setOptionsVisible(null);
                   }}>
                     <Text style={styles.dropdownOption}>폴더 이동</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -166,80 +120,46 @@ export default function DocumentTab() {
         </View>
       </ScrollView>
 
-      {/* 플러스 메뉴 */}
-      <Modal transparent visible={modalVisible} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>무엇을 추가할까요?</Text>
-            <Pressable style={styles.option} onPress={() => handleAction('폴더 생성')}>
-              <Text style={styles.optionText}>📁 폴더 생성</Text>
-            </Pressable>
-            <Pressable style={styles.option}><Text style={styles.optionText}>📄 PDF 업로드</Text></Pressable>
-            <Pressable style={styles.option}><Text style={styles.optionText}>🖼️ 이미지 업로드</Text></Pressable>
-            <Pressable onPress={() => setModalVisible(false)}>
-              <Text style={styles.cancelText}>닫기</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      {/* ✅ 모달 컴포넌트들 적용 */}
+      <AddOptionsModal
+        visible={actionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        onSelect={(action) => {
+          if (action === '폴더 생성') openCreateModal();
+          setActionModalVisible(false);
+        }}
+      />
 
-      {/* 폴더 생성/수정/색상 변경 모달 */}
-      <Modal transparent visible={folderModalVisible} animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {!colorEditMode && (
-              <>
-                <Text style={styles.modalTitle}>{editMode ? '이름 변경' : '폴더 이름을 입력하세요'}</Text>
-                <TextInput
-                  placeholder="예: 수학노트"
-                  style={styles.input}
-                  value={folderName}
-                  onChangeText={setFolderName}
-                />
-              </>
-            )}
-            <Text style={{ fontWeight: 'bold', marginTop: 8 }}>폴더 색상 선택</Text>
-            {renderColorOptions(colorEditMode ? async (color) => {
-              if (selectedIndex !== null) {
-                const folder = folders[selectedIndex];
-                await updateFolderColor(folder._id, color);
-              }
-              setFolderModalVisible(false);
-              setColorEditMode(false);
-            } : setFolderColor, folderColor)}
+      <FolderFormModal
+        visible={folderModalVisible}
+        onClose={() => {
+          setFolderModalVisible(false);
+          setEditMode(false);
+          setColorEditMode(false);
+          setFolderName('');
+        }}
+        folderName={folderName}
+        setFolderName={setFolderName}
+        folderColor={folderColor}
+        setFolderColor={setFolderColor}
+        onSubmit={editMode ? renameFolder : createFolder}
+        nameOnly={true}
+        editMode={editMode}
+        colorOnly={colorEditMode}
+        updateColor={updateFolderColor}
+        selectedFolderIndex={selectedIndex}
+        folders={folders}
+      />
 
-            {!colorEditMode && (
-              <TouchableOpacity style={styles.createButton} onPress={editMode ? renameFolder : createFolder}>
-                <Text style={styles.createButtonText}>{editMode ? '변경' : '생성'}</Text>
-              </TouchableOpacity>
-            )}
-
-            <Pressable onPress={() => {
-              setFolderModalVisible(false);
-              setColorEditMode(false);
-              setEditMode(false);
-              setFolderName('');
-            }}>
-              <Text style={styles.cancelText}>닫기</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 폴더 이동 모달 */}
-      <Modal transparent visible={moveModalVisible} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>폴더를 어디로 이동할까요?</Text>
-            <ScrollView style={{ maxHeight: 300, width: '100%' }}>
-              {renderFolderTree(null)}
-            </ScrollView>
-            <Pressable onPress={() => setMoveModalVisible(false)}>
-              <Text style={styles.cancelText}>취소</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <FolderMoveModal
+        visible={moveModalVisible}
+        folders={folders}
+        onSelect={handleMove}
+        onClose={() => {
+          setMoveModalVisible(false);
+          setMovingFolderId(null);
+        }}
+      />
     </View>
   );
 }
@@ -293,38 +213,5 @@ const styles = StyleSheet.create({
   dropdownOption: {
     paddingVertical: 4,
     fontSize: 14,
-  },
-  modalOverlay: {
-    flex: 1, backgroundColor: '#00000088',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 24,
-    width: '80%',
-    alignItems: 'center',
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-  option: {
-    paddingVertical: 12, width: '100%', alignItems: 'center',
-    borderBottomWidth: 1, borderBottomColor: '#eee',
-  },
-  optionText: { fontSize: 16 },
-  cancelText: { marginTop: 16, color: '#999' },
-  input: {
-    width: '100%', height: 44,
-    borderWidth: 1, borderColor: '#ccc',
-    borderRadius: 8, paddingHorizontal: 12, marginBottom: 16,
-  },
-  createButton: {
-    backgroundColor: '#000',
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
   },
 });

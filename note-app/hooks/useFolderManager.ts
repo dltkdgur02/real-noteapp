@@ -3,16 +3,10 @@ import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { getUserId } from '../utils/auth';
 import { API_BASE } from '@/utils/api';
+import { Folder } from '@/types/folder';
 
 export function useFolderManager() {
   
-  type Folder = {
-  _id: string;
-  name: string;
-  userId: string;
-  parentId: string | null;
-  color?: string;
-};
 
 const [folders, setFolders] = useState<Folder[]>([]);
   const [folderName, setFolderName] = useState('');
