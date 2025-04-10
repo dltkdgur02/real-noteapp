@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { useFolderManager } from '@/hooks/useFolderManager';
 import PlusIcon from '../../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../../assets/images/folder.svg';
 import AddOptionsModal from '@/components/Modals/AddOptionsModal';
 import FolderFormModal from '@/components/Modals/FolderFormModal';
 import FolderMoveModal from '@/components/Modals/FolderMoveModal';
+import PdfUploadModal from '@/components/Modals/PdfUploadModal';
+
 
 export default function FolderScreen() {
   const router = useRouter();
@@ -24,6 +27,8 @@ export default function FolderScreen() {
   const [colorEditMode, setColorEditMode] = useState(false);
   const [nameOnly, setNameOnly] = useState(false);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
+
 
   const {
     folders,
@@ -46,6 +51,7 @@ export default function FolderScreen() {
     setFolderColor,
     updateFolderColor,
     moveFolder,
+    openCreateModal,
   } = useFolderManager();
 
   useEffect(() => {
@@ -74,6 +80,18 @@ export default function FolderScreen() {
     setMovingFolderId(null);
   };
 
+  const handlePDFPick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+      if (result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        console.log('선택한 PDF:', file);
+      }
+    } catch (error) {
+      console.error('PDF 선택 중 오류:', error);
+    }
+  };
+  
   const renderChildFolders = () => {
     return folders
       .filter(folder => folder.parentId === currentFolderId)
@@ -168,12 +186,14 @@ export default function FolderScreen() {
         onClose={() => setActionModalVisible(false)}
         onSelect={(action) => {
           if (action === '폴더 생성') {
-            setNameOnly(false);
-            setFolderModalVisible(true);
+            openCreateModal();
+          } else if (action === 'PDF 업로드') {
+            setPdfModalVisible(true);
           }
           setActionModalVisible(false);
         }}
       />
+
 
       <FolderFormModal
         visible={folderModalVisible}
@@ -204,6 +224,13 @@ export default function FolderScreen() {
         onSelect={handleMoveFolder}
         onClose={() => setMoveModalVisible(false)}
       />
+
+      <PdfUploadModal
+              visible={pdfModalVisible}
+              onClose={() => setPdfModalVisible(false)}
+              onPickPdf={handlePDFPick}
+            />
+
     </View>
   );
 }
