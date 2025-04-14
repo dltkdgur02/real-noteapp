@@ -10,14 +10,17 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { getUserId } from '@/utils/auth';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   onPickPdf: () => void;
+  currentFolderId: string | null;
 };
 
-export default function UploadPDFModal({ visible, onClose }: Props) {
+export default function UploadPDFModal({ visible, onClose, onPickPdf,currentFolderId,  }: Props) {
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -39,8 +42,9 @@ export default function UploadPDFModal({ visible, onClose }: Props) {
       const fileNameWithoutExt = name.replace(/\.pdf$/i, '');
   
       await createNoteFile(uri, fileNameWithoutExt);
-  
+      
       setMessage('✅ .note 파일 생성 완료!');
+      onPickPdf(); // 🔥 여기 추가!
     } catch (error) {
       console.error('PDF 업로드 오류:', error);
       setMessage('⚠️ 업로드 중 오류가 발생했어요.');
@@ -52,22 +56,43 @@ export default function UploadPDFModal({ visible, onClose }: Props) {
   
 
   const createNoteFile = async (pdfUri: string, fileName: string) => {
-    const noteDir = `${FileSystem.documentDirectory}${fileName}.note/`;
+    const noteDir = `${FileSystem.documentDirectory}notes/${fileName}.note/`;
+    console.log('🛠 noteDir 생성 위치:', noteDir);
+  
     const pdfDest = `${noteDir}document.pdf`;
-    const metaDest = `${noteDir}note.json`;
-
-    await FileSystem.makeDirectoryAsync(noteDir, { intermediates: true });
-
-    await FileSystem.copyAsync({ from: pdfUri, to: pdfDest });
-
-    const metadata = {
-      title: fileName,
-      createdAt: new Date().toISOString(),
-      originalFile: 'document.pdf',
-    };
-
-    await FileSystem.writeAsStringAsync(metaDest, JSON.stringify(metadata));
+    const metaDest = `${noteDir}metadata.json`;
+  
+    try {
+      const notesDir = `${FileSystem.documentDirectory}notes/`;
+      const notesDirInfo = await FileSystem.getInfoAsync(notesDir);
+      if (!notesDirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(notesDir, { intermediates: true });
+        console.log('📂 notes/ 폴더가 없어서 새로 생성함');
+      }
+  
+      await FileSystem.makeDirectoryAsync(noteDir, { intermediates: true });
+      console.log('📁 노트 폴더 생성 완료');
+  
+      await FileSystem.copyAsync({ from: pdfUri, to: pdfDest });
+      console.log('✅ PDF 복사 완료');
+  
+      const metadata = {
+        id: `${fileName}-${Date.now()}`,
+        name: fileName,
+        createdAt: new Date().toISOString(),
+        originalFile: 'document.pdf',
+        folderId: null, // 기본 null (나중에 currentFolderId로 연결)
+        userId: await getUserId(),
+      };
+  
+      await FileSystem.writeAsStringAsync(metaDest, JSON.stringify(metadata));
+      console.log('📝 메타데이터 저장 완료');
+    } catch (err) {
+      console.error('🚨 createNoteFile 에러:', err);
+    }
   };
+  
+  
 
   return (
     <Modal transparent visible={visible} animationType="fade">

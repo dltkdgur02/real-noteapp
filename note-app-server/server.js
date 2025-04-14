@@ -4,6 +4,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+const notesRoutes = require('./routes/note');
 
 
 // ✅ 먼저 미들웨어부터 적용!
@@ -12,7 +13,7 @@ app.use(express.json());
 
 const folderRoutes = require('./routes/folder');
 app.use('/api/folders', folderRoutes);
-
+app.use('/api/notes', notesRoutes); // ✅ 이거 하나만
 
 
 
@@ -39,7 +40,6 @@ app.get('/', (req, res) => {
   res.send('서버 연결 성공!');
 });
 
-
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 서버 실행 중! http://localhost:${PORT}`);
@@ -49,6 +49,8 @@ const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/folders', folderRoutes);
+
+app.use('/api/notes', notesRoutes);
 
 
 
