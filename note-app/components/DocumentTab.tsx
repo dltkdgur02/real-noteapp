@@ -8,6 +8,7 @@ import {
 import { useState } from 'react';
 import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
+import NoteIcon from '../assets/images/noteicon.svg';
 import { useRouter } from 'expo-router';
 import { useFolderManager } from '../hooks/useFolderManager';
 import * as DocumentPicker from 'expo-document-picker';
@@ -130,81 +131,88 @@ export default function DocumentTab() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* 📁 폴더 목록 */}
-        <View style={styles.folderRow}>
-          <TouchableOpacity
-            style={styles.folderContainer}
-            onPress={() => setActionModalVisible(true)}
-          >
-            <View style={styles.folderItem}>
-              <PlusIcon width={150} height={150} />
-            </View>
+  <View style={styles.folderRow}>
+    {/* ➕ 추가 버튼 */}
+    <TouchableOpacity
+      style={styles.folderContainer}
+      onPress={() => setActionModalVisible(true)}
+    >
+      <View style={styles.folderItem}>
+        <PlusIcon width={150} height={150} />
+      </View>
+    </TouchableOpacity>
+
+    {/* 📁 폴더 목록 */}
+    {folders.filter(f => f.parentId === null).map((folder, index) => (
+      <View key={folder._id} style={styles.folderContainer}>
+        <TouchableOpacity
+          style={styles.folderItem}
+          onPress={() => router.push(`/folder/${folder._id}`)}
+        >
+          <FolderIcon width={150} height={150} color={folder.color || '#999'} />
+        </TouchableOpacity>
+
+        <View style={styles.folderLabelRow}>
+          <Text style={styles.folderText}>{folder.name}</Text>
+          <TouchableOpacity onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}>
+            <Text style={styles.dropdown}>▼</Text>
           </TouchableOpacity>
-
-          {folders.filter(f => f.parentId === null).map((folder, index) => (
-            <View key={folder._id} style={styles.folderContainer}>
-              <TouchableOpacity
-                style={styles.folderItem}
-                onPress={() => router.push(`/folder/${folder._id}`)}
-              >
-                <FolderIcon width={150} height={150} color={folder.color || '#999'} />
-              </TouchableOpacity>
-
-              <View style={styles.folderLabelRow}>
-                <Text style={styles.folderText}>{folder.name}</Text>
-                <TouchableOpacity onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}>
-                  <Text style={styles.dropdown}>▼</Text>
-                </TouchableOpacity>
-              </View>
-
-              {optionsVisible === index && (
-                <View style={styles.dropdownBox}>
-                  <TouchableOpacity onPress={() => {
-                    setSelectedIndex(index);
-                    setEditMode(true);
-                    setFolderName(folder.name);
-                    setFolderColor(folder.color || '#FFD700');
-                    setFolderModalVisible(true);
-                    setOptionsVisible(null);
-                  }}>
-                    <Text style={styles.dropdownOption}>이름 변경</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => deleteFolder(folder._id)}>
-                    <Text style={styles.dropdownOption}>폴더 삭제</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => {
-                    setSelectedIndex(index);
-                    setColorEditMode(true);
-                    setFolderModalVisible(true);
-                    setFolderColor(folder.color || '#FFD700');
-                    setOptionsVisible(null);
-                  }}>
-                    <Text style={styles.dropdownOption}>색상 변경</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => {
-                    setMovingFolderId(folder._id);
-                    setMoveModalVisible(true);
-                    setOptionsVisible(null);
-                  }}>
-                    <Text style={styles.dropdownOption}>폴더 이동</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ))}
         </View>
 
-        {/* 📄 노트 목록 */}
-        <View style={{ marginTop: 16 }}>
-        {notes.map(note => (
-              <View key={note.noteId} style={styles.noteItem}>
-            <Text>{note.name}</Text>
-            <Text>{note.createdAt}</Text>
+        {optionsVisible === index && (
+          <View style={styles.dropdownBox}>
+            <TouchableOpacity onPress={() => {
+              setSelectedIndex(index);
+              setEditMode(true);
+              setFolderName(folder.name);
+              setFolderColor(folder.color || '#FFD700');
+              setFolderModalVisible(true);
+              setOptionsVisible(null);
+            }}>
+              <Text style={styles.dropdownOption}>이름 변경</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => deleteFolder(folder._id)}>
+              <Text style={styles.dropdownOption}>폴더 삭제</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              setSelectedIndex(index);
+              setColorEditMode(true);
+              setFolderModalVisible(true);
+              setFolderColor(folder.color || '#FFD700');
+              setOptionsVisible(null);
+            }}>
+              <Text style={styles.dropdownOption}>색상 변경</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              setMovingFolderId(folder._id);
+              setMoveModalVisible(true);
+              setOptionsVisible(null);
+            }}>
+              <Text style={styles.dropdownOption}>폴더 이동</Text>
+            </TouchableOpacity>
           </View>
-        ))}
+        )}
       </View>
+    ))}
 
-      </ScrollView>
+    {/* 📄 노트 목록 */}
+    {notes.map((note) => (
+      <View key={note.id} style={styles.folderContainer}>
+        <TouchableOpacity style={styles.folderItem}>
+          <NoteIcon width={120} height={120} />
+        </TouchableOpacity>
+        <Text
+          style={styles.folderText}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {note.name}
+        </Text>
+      </View>
+    ))}
+  </View>
+</ScrollView>
+
 
 
       {/* ✅ 모달 컴포넌트들 적용 */}
@@ -320,11 +328,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   noteItem: {
-    padding: 12,
-    backgroundColor: '#f9f9f9',
-    marginBottom: 12,
-    borderRadius: 8,
-    elevation: 2,
+    width: 150,
+    height: 150,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   noteTitle: {
     fontSize: 16,
