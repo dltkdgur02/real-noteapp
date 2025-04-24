@@ -60,6 +60,7 @@ export default function DocumentTab() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const {  reloadNotes } = useNoteManager(currentFolderId);
   const { notes } = useNoteManager(null);
+  const [nameOnly, setNameOnly] = useState(false);
 
 
 
@@ -236,16 +237,18 @@ export default function DocumentTab() {
           setFolderModalVisible(false);
           setEditMode(false);
           setColorEditMode(false);
+          setNameOnly(false);
           setFolderName('');
+          setFolderColor('#FFD700');
         }}
         folderName={folderName}
         setFolderName={setFolderName}
         folderColor={folderColor}
         setFolderColor={setFolderColor}
         onSubmit={editMode ? renameFolder : createFolder}
-        nameOnly={true}
         editMode={editMode}
         colorOnly={colorEditMode}
+        nameOnly={nameOnly}
         updateColor={updateFolderColor}
         selectedFolderIndex={selectedIndex}
         folders={folders}

@@ -15,6 +15,13 @@ import AddOptionsModal from '@/components/Modals/AddOptionsModal';
 import FolderFormModal from '@/components/Modals/FolderFormModal';
 import FolderMoveModal from '@/components/Modals/FolderMoveModal';
 import PdfUploadModal from '@/components/Modals/PdfUploadModal';
+import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system';
+import { getUserId } from '@/utils/auth'; // 🔥 이 줄이 있어야 getUserId() 사용 가능
+import { useNoteManager, uploadNoteToServer } from '@/hooks/\buseNoteManager';
+import { Note } from '@/types/note';
+import NoteIcon from '../../assets/images/noteicon.svg';
+
 
 
 export default function FolderScreen() {
@@ -28,6 +35,8 @@ export default function FolderScreen() {
   const [nameOnly, setNameOnly] = useState(false);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [pdfModalVisible, setPdfModalVisible] = useState(false);
+  const { notes, reloadNotes } = useNoteManager(currentFolderId);
+
 
 
   const {
@@ -72,25 +81,66 @@ export default function FolderScreen() {
     return names.join(' → ');
   };
 
-  const handleMoveFolder = (targetId: string) => {
-    if (movingFolderId && movingFolderId !== targetId) {
+  const generateUUID = async (): Promise<string> => {
+    const randomBytes = await Crypto.getRandomBytesAsync(16);
+    const hex = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    return [
+      hex.substr(0, 8),
+      hex.substr(8, 4),
+      '4' + hex.substr(12, 3),
+      ((parseInt(hex.substr(16, 2), 16) & 0x3f) | 0x80).toString(16) + hex.substr(18, 2),
+      hex.substr(20, 12),
+    ].join('-');
+  };
+  
+
+  const handleMove = (targetId: string) => {
+    if (movingFolderId && targetId !== movingFolderId) {
       moveFolder(movingFolderId, targetId);
     }
     setMoveModalVisible(false);
     setMovingFolderId(null);
   };
 
-  const handlePDFPick = async () => {
+  const handlePickPdf = async () => {
+    console.log('📂 handlePickPdf 함수 시작됨'); 
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
-      if (result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        console.log('선택한 PDF:', file);
+      if (result.canceled || !result.assets?.length) return;
+  
+      const pdf = result.assets[0];
+      const noteId = await generateUUID();
+      const folderPath = `${FileSystem.documentDirectory}notes/${noteId}.note/`;
+  
+      await FileSystem.makeDirectoryAsync(folderPath, { intermediates: true });
+  
+      const pdfTargetPath = `${folderPath}${pdf.name}`;
+      await FileSystem.copyAsync({ from: pdf.uri, to: pdfTargetPath });
+  
+      const userId = await getUserId();
+      if (!userId) {
+        console.warn('❗ userId 없음');
+        return;
       }
-    } catch (error) {
-      console.error('PDF 선택 중 오류:', error);
+  
+      const metadata: Note = {
+        id: noteId,
+        name: pdf.name.replace(/\.pdf$/, ''),
+        createdAt: new Date().toISOString(),
+        pdfPath: pdfTargetPath,
+        folderId: currentFolderId,
+        userId,
+      };
+  
+      await FileSystem.writeAsStringAsync(`${folderPath}metadata.json`, JSON.stringify(metadata));
+  
+      console.log('📥 로컬 저장 완료:', metadata);
+      await uploadNoteToServer(metadata);
+    } catch (err) {
+      console.error('🚨 PDF 업로드 처리 중 오류:', err);
     }
   };
+  
   
   const renderChildFolders = () => {
     return folders
@@ -149,38 +199,76 @@ export default function FolderScreen() {
 
   return (
     <View style={styles.container}>
+      {/* 사이드바 */}
       <View style={styles.sidebar}>
         <Text style={styles.sidebarTitle}>📝 Note-App</Text>
         {['문서', '즐겨찾기', '검색', 'Ai 기능'].map(tab => (
-          <TouchableOpacity key={tab} onPress={() => router.push(`/main?tab=${tab}`)} style={styles.tabButton}>
+          <TouchableOpacity
+            key={tab}
+            onPress={() => router.push(`/main?tab=${tab}`)}
+            style={styles.tabButton}
+          >
             <Text style={styles.tabText}>{tab}</Text>
           </TouchableOpacity>
         ))}
       </View>
-
+  
+      {/* 메인 컨텐츠 */}
       <View style={styles.wrapper}>
+        {/* 헤더 */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/main?tab=document')}>
+          <TouchableOpacity
+            onPress={() =>
+              router.canGoBack()
+                ? router.back()
+                : router.replace('/main?tab=document')
+            }
+          >
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
           <View style={styles.titleWrapper}>
-            <Text style={styles.headerText}>📁 {buildBreadcrumbString(currentFolderId)}</Text>
+            <Text style={styles.headerText}>
+              📁 {buildBreadcrumbString(currentFolderId)}
+            </Text>
           </View>
         </View>
-
+  
+        {/* 폴더 + 노트 목록 */}
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.folderRow}>
-            <TouchableOpacity style={styles.folderContainer} onPress={() => setActionModalVisible(true)}>
+            {/* ➕ 추가 버튼 */}
+            <TouchableOpacity
+              style={styles.folderContainer}
+              onPress={() => setActionModalVisible(true)}
+            >
               <View style={styles.folderItem}>
                 <PlusIcon width={150} height={150} />
               </View>
             </TouchableOpacity>
+  
+            {/* 📁 하위 폴더 목록 */}
             {renderChildFolders()}
+  
+            {/* 📄 노트 목록 */}
+            {notes.map((note) => (
+              <View key={note.id} style={styles.folderContainer}>
+                <TouchableOpacity style={styles.folderItem}>
+                  <NoteIcon width={120} height={120} />
+                </TouchableOpacity>
+                <Text
+                  style={styles.folderText}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {note.name}
+                </Text>
+              </View>
+            ))}
           </View>
         </ScrollView>
       </View>
-
-      {/* ✅ 모달 컴포넌트 적용 */}
+  
+      {/* 모달들 */}
       <AddOptionsModal
         visible={actionModalVisible}
         onClose={() => setActionModalVisible(false)}
@@ -193,8 +281,7 @@ export default function FolderScreen() {
           setActionModalVisible(false);
         }}
       />
-
-
+  
       <FolderFormModal
         visible={folderModalVisible}
         onClose={() => {
@@ -217,20 +304,26 @@ export default function FolderScreen() {
         selectedFolderIndex={selectedIndex}
         folders={folders}
       />
-
+  
       <FolderMoveModal
-        visible={moveModalVisible}
-        folders={folders}
-        onSelect={handleMoveFolder}
-        onClose={() => setMoveModalVisible(false)}
-      />
-
+            visible={moveModalVisible}
+            folders={folders}
+            onSelect={handleMove}
+            onClose={() => {
+              setMoveModalVisible(false);
+              setMovingFolderId(null);
+            }}
+          />
+  
       <PdfUploadModal
-              visible={pdfModalVisible}
-              onClose={() => setPdfModalVisible(false)}
-              onPickPdf={handlePDFPick}
-            />
-
+        visible={pdfModalVisible}
+        onClose={() => setPdfModalVisible(false)}
+        onPickPdf={async () => {
+          await handlePickPdf(); // PDF 저장 및 서버 업로드
+          reloadNotes();         // 노트 목록 갱신
+        }}
+        currentFolderId={currentFolderId}
+      />
     </View>
   );
 }
