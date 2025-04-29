@@ -16,8 +16,8 @@ import * as Crypto from 'expo-crypto';
 import { Note } from '@/types/note';
 import * as FileSystem from 'expo-file-system';
 import { getUserId } from '@/utils/auth'; // 🔥 이 줄이 있어야 getUserId() 사용 가능
-import { useNoteManager, uploadNoteToServer } from '@/hooks/\buseNoteManager';
-import { deleteNote } from '@/hooks/\buseNoteManager';
+import { useNoteManager, uploadNoteToServer } from '@/hooks/useNoteManager';
+import { deleteNote } from '@/hooks/useNoteManager';
 
 
 
@@ -198,19 +198,19 @@ export default function DocumentTab() {
 
     {/* 📄 노트 목록 */}
     {notes.map((note) => (
-      <View key={note.id} style={styles.folderContainer}>
-        <TouchableOpacity style={styles.folderItem}>
-          <NoteIcon width={120} height={120} />
-        </TouchableOpacity>
-        <Text
-          style={styles.folderText}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {note.name}
-        </Text>
-      </View>
-    ))}
+  <View key={note.id ?? Math.random().toString()} style={styles.folderContainer}>
+    <TouchableOpacity style={styles.folderItem}>
+      <NoteIcon width={120} height={120} />
+    </TouchableOpacity>
+    <Text
+      style={styles.folderText}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+    >
+      {note.name}
+    </Text>
+  </View>
+))}
   </View>
 </ScrollView>
 
