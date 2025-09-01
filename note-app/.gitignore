@@ -37,5 +37,15 @@ yarn-error.*
 
 app-example
 
-# 환경 변수
+# env
 .env
+**/.env
+**/.env.*
+env.local
+.expo/*
+expo-env.d.ts
+*.keystore
+*.jks
+*.p12
+*.p8
+*.orig.*
