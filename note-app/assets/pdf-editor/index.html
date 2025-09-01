@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>PDF Editor Pro</title>
+
+    <!-- pdf.js (뷰어 + 워커) -->
+    <link rel="preconnect" href="https://unpkg.com">
+    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script>
+        // pdf.js worker 설정
+        window['pdfjs-dist/build/pdf'].GlobalWorkerOptions.workerSrc =
+            "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    </script>
+
+    <!-- pdf-lib (저장 시 병합) -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+    <style>
+        :root{ --bar-h:44px; --accent:#0ea5e9; }
+        html,body{margin:0;height:100%;background:#fff;-webkit-user-select:none;user-select:none}
+        .bar{
+            height:var(--bar-h); display:flex; align-items:center; gap:8px;
+            padding:0 8px; border-bottom:1px solid #eee; background:#fafafa;
+            overflow-x:auto; white-space:nowrap;
+        }
+        .btn{height:28px;padding:0 10px;border:1px solid #ddd;background:#fff;border-radius:8px;
+            font:600 12px/28px system-ui;display:inline-flex;align-items:center;gap:6px;color:#222}
+        .btn.icon{width:28px;justify-content:center;padding:0}
+        .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+        .chip{display:inline-flex;align-items:center;gap:6px;padding:0 10px;height:28px;
+            border:1px solid #e5e5e5;border-radius:999px;background:#fff;font:500 12px system-ui;}
+        .dot{width:14px;height:14px;border-radius:50%;border:1px solid #ddd}
+        .row{display:flex;align-items:center;gap:8px}
+
+        .viewer{position:relative;height:calc(100% - var(--bar-h));overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;}
+        .page{position:relative;margin:16px auto;box-shadow:0 2px 8px rgba(0,0,0,.07);background:#fff}
+        .layer{display:block}
+        canvas.draw{position:absolute;left:0;top:0}
+        canvas.draw{touch-action:pan-x pan-y;}
+        canvas.draw.drawing{touch-action:none;}
+
+        .pager{
+            position:sticky; top:0; z-index:3; height:28px; display:flex; gap:8px; align-items:center;
+            padding:0 8px; background:linear-gradient(#fff, rgba(255,255,255,.8));
+            border-bottom:1px solid #eee;
+        }
+        .info{margin-left:auto;color:#666;font:500 12px system-ui}
+    </style>
+</head>
+<body>
+
+<!-- 상단 툴바 (슬림) -->
+<div class="bar">
+    <button class="btn icon" id="tool-pen" title="펜">✎</button>
+    <button class="btn icon" id="tool-hl" title="형광펜">🖍</button>
+    <button class="btn icon" id="tool-eraser" title="지우개">⌫</button>
+
+    <span class="chip">
+    굵기
+    <button class="btn icon" id="w-dec">−</button>
+    <span id="w-val">4</span>px
+    <button class="btn icon" id="w-inc">＋</button>
+  </span>
+
+    <span class="chip">
+    지우개
+    <button class="btn" data-erase="S">S</button>
+    <button class="btn" data-erase="M">M</button>
+    <button class="btn" data-erase="L">L</button>
+  </span>
+
+    <div class="row" id="colors"></div>
+
+    <div class="row" style="margin-left:auto">
+        <button class="btn" id="undo">↶</button>
+        <button class="btn" id="redo">↷</button>
+        <button class="btn" id="clear">전체삭제</button>
+        <button class="btn primary" id="save">저장</button>
+    </div>
+</div>
+
+<!-- 페이지 인디케이터(상단 고정) + 뷰어 -->
+<div class="viewer" id="viewer">
+    <div class="pager">
+        <button class="btn icon" id="prev">〈</button>
+        <span id="pageNow">1</span> / <span id="pageCount">1</span>
+        <span class="info" id="dpiInfo"></span>
+    </div>
+    <div id="pages"></div>
+</div>
+
+<script>
+    const RN = window.ReactNativeWebView;
+    const pdfjs = window['pdfjs-dist/build/pdf'];
+    const { PDFDocument } = window.PDFLib;
+
+    // 도구 상태
+    let tool='pen';          // 'pen' | 'hl' | 'eraser'
+    let color='#fbbf24';
+    let width=4;
+    let eraser='M';
+    const colors = ['#000','#ef4444','#f59e0b','#22c55e','#3b82f6','#8b5cf6','#ec4899'];
+
+    // PDF 상태
+    let pdfDoc = null;         // pdf.js 문서
+    let pdfBytes = null;       // 원본 ArrayBuffer (저장 병합에 사용)
+    let scale = 1.5;           // 확대 배율
+    let pageCount = 0;
+    let currentPage = 1;
+
+    // 각 페이지 구조: {wrap, renderCanvas, drawCanvas, rctx, dctx, history:[], redo:[]}
+    const pages = [];
+
+    // UI
+    function qs(id){return document.getElementById(id)}
+    function refreshToolUI(){
+        ['tool-pen','tool-hl','tool-eraser'].forEach(id=>{
+            const el=qs(id);
+            el.style.borderColor = (id==='tool-'+tool)? 'var(--accent)' : '#ddd';
+        });
+    }
+    qs('tool-pen').onclick=()=>{ tool='pen'; refreshToolUI(); };
+    qs('tool-hl').onclick=()=>{ tool='hl'; refreshToolUI(); };
+    qs('tool-eraser').onclick=()=>{ tool='eraser'; refreshToolUI(); };
+
+    qs('w-dec').onclick=()=>{ width=Math.max(1,width-1); qs('w-val').textContent=width; };
+    qs('w-inc').onclick=()=>{ width=Math.min(24,width+1); qs('w-val').textContent=width; };
+    document.querySelectorAll('[data-erase]').forEach(b=> b.onclick=()=>{ eraser=b.dataset.erase; });
+
+    const $colors = qs('colors');
+    colors.forEach(c=>{
+        const b=document.createElement('button');
+        b.className='btn icon';
+        const d=document.createElement('span');
+        d.className='dot'; d.style.background=c;
+        b.appendChild(d);
+        b.onclick=()=>{ color=c; };
+        $colors.appendChild(b);
+    });
+
+    // 히스토리 도우미
+    function pushHistory(pg){
+        try { pg.history.push(pg.drawCanvas.toDataURL('image/png')); pg.redo.length=0; } catch {}
+    }
+    function doUndo(pg){
+        if(pg.history.length===0) return;
+        const last = pg.history.pop();
+        pg.redo.push(pg.drawCanvas.toDataURL('image/png'));
+        drawDataURL(pg.dctx, last, pg.drawCanvas);
+    }
+    function doRedo(pg){
+        if(pg.redo.length===0) return;
+        const img = pg.redo.pop();
+        pg.history.push(pg.drawCanvas.toDataURL('image/png'));
+        drawDataURL(pg.dctx, img, pg.drawCanvas);
+    }
+    function drawDataURL(ctx, dataURL, targetCanvas){
+        const img = new Image();
+        img.onload=()=>{ ctx.clearRect(0,0,targetCanvas.width,targetCanvas.height); ctx.drawImage(img,0,0); };
+        img.src=dataURL;
+    }
+    qs('undo').onclick=()=> doUndo(pages[currentPage-1]);
+    qs('redo').onclick=()=> doRedo(pages[currentPage-1]);
+    qs('clear').onclick=()=>{
+        const pg = pages[currentPage-1];
+        pushHistory(pg);
+        pg.dctx.clearRect(0,0,pg.drawCanvas.width, pg.drawCanvas.height);
+    };
+    qs('prev').onclick=()=>goPage(Math.max(1,currentPage-1));
+    qs('save').onclick=saveMerged;
+
+    function goPage(n){
+        currentPage = n;
+        qs('pageNow').textContent = String(n);
+        // 스크롤 위치로 이동
+        const pg = pages[n-1];
+        if(pg?.wrap) pg.wrap.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    // 입력(펜슬만 필기)
+    function isDrawablePointer(e){ return e.pointerType==='pen' || e.pointerType==='mouse'; }
+    function currentStrokeStyle(){
+        if(tool==='hl') return { color, width: width*4, alpha:.35, composite:'multiply' };
+        if(tool==='pen')return { color, width, alpha:1, composite:'source-over' };
+        return { color:'#000', width: (eraser==='S'?8:eraser==='M'?16:28), alpha:1, composite:'destination-out' };
+    }
+
+    function attachDrawEvents(pg){
+        let drawing=false, lastX=0,lastY=0;
+        const cv = pg.drawCanvas, ctx=pg.dctx;
+
+        cv.addEventListener('pointerdown', e=>{
+            if(!isDrawablePointer(e)) return; // 손가락 무시 → 스크롤만
+            e.preventDefault();
+            cv.classList.add('drawing');
+            const s=currentStrokeStyle();
+            ctx.globalCompositeOperation=s.composite;
+            ctx.strokeStyle=s.color;
+            ctx.lineWidth=s.width;
+            ctx.globalAlpha=s.alpha;
+            ctx.lineJoin=ctx.lineCap='round';
+            const r=cv.getBoundingClientRect();
+            lastX = e.clientX - r.left;
+            lastY = e.clientY - r.top;
+            ctx.beginPath(); ctx.moveTo(lastX,lastY);
+            drawing=true;
+        }, {passive:false});
+
+        cv.addEventListener('pointermove', e=>{
+            if(!drawing || !isDrawablePointer(e)) return;
+            const r=cv.getBoundingClientRect();
+            const x = e.clientX - r.left, y = e.clientY - r.top;
+            ctx.lineTo(x,y); ctx.stroke();
+            lastX=x; lastY=y;
+        });
+
+        const end = ()=>{
+            if(drawing){
+                drawing=false; cv.classList.remove('drawing');
+                ctx.closePath(); pushHistory(pg);
+            }
+        };
+        cv.addEventListener('pointerup', end);
+        cv.addEventListener('pointercancel', end);
+        cv.addEventListener('pointerleave', end);
+    }
+
+    // PDF 로드 & 페이지 렌더
+    async function loadPdfFromPath(localPath){
+        // 원본 바이트 (저장 병합용)
+        const res = await fetch(localPath);
+        const buf = await res.arrayBuffer();
+        pdfBytes = buf;
+
+        pdfDoc = await pdfjs.getDocument({data:buf}).promise;
+        pageCount = pdfDoc.numPages;
+        qs('pageCount').textContent = String(pageCount);
+
+        const $pages = qs('pages'); $pages.innerHTML='';
+        pages.length=0;
+
+        for(let i=1;i<=pageCount;i++){
+            const page = await pdfDoc.getPage(i);
+            const viewport = page.getViewport({ scale });
+
+            const wrap = document.createElement('div');
+            wrap.className='page'; wrap.style.width = viewport.width+'px'; wrap.style.height=viewport.height+'px';
+
+            const renderCanvas = document.createElement('canvas');
+            renderCanvas.className='layer render'; renderCanvas.width=viewport.width; renderCanvas.height=viewport.height;
+            const rctx = renderCanvas.getContext('2d', {alpha:false});
+
+            const drawCanvas = document.createElement('canvas');
+            drawCanvas.className='layer draw'; drawCanvas.width=viewport.width; drawCanvas.height=viewport.height;
+            drawCanvas.style.width='100%'; drawCanvas.style.height='100%';
+            drawCanvas.style.pointerEvents='auto';
+
+            wrap.appendChild(renderCanvas);
+            wrap.appendChild(drawCanvas);
+            $pages.appendChild(wrap);
+
+            pages.push({ wrap, renderCanvas, drawCanvas, rctx, dctx: drawCanvas.getContext('2d'), history:[], redo:[] });
+            attachDrawEvents(pages[i-1]);
+
+            // 렌더
+            await page.render({ canvasContext: rctx, viewport }).promise;
+        }
+
+        // DPI 안내 (참고용)
+        const dpi = Math.round(96*scale);
+        qs('dpiInfo').textContent = `~${dpi}dpi · 페이지 ${pageCount}장`;
+        goPage(1);
+    }
+
+    // 저장: 원본 PDF에 페이지별 주석 레이어(drawCanvas)를 합성
+    async function saveMerged(){
+        try{
+            if(!pdfBytes) throw new Error('PDF 원본이 없습니다.');
+            const pdfDocLib = await PDFDocument.load(pdfBytes);
+
+            for(let i=0;i<pdfDocLib.getPageCount();i++){
+                const pg = pages[i];
+                // 투명한 주석 레이어를 PNG로 추출
+                const pngDataURL = pg.drawCanvas.toDataURL('image/png');
+                // base64 → Uint8Array
+                const pngBytes = toUint8Array(pngDataURL);
+                const png = await pdfDocLib.embedPng(pngBytes);
+                const [pw,ph] = pdfDocLib.getPage(i).getSize();
+                pdfDocLib.getPage(i).drawImage(png, { x:0, y:0, width:pw, height:ph });
+            }
+            const merged = await pdfDocLib.save({ dataUri:false });
+            // RN으로 base64 전송(용량 주의)
+            const base64 = arrayBufferToBase64(merged);
+            RN?.postMessage(JSON.stringify({ type:'SAVE_PDF_BASE64', data:{ base64 } }));
+            alert('저장 완료!');
+        }catch(err){
+            console.error(err);
+            alert('저장 실패: ' + (err?.message||err));
+        }
+    }
+
+    // 유틸: dataURL → Uint8Array
+    function toUint8Array(dataURL){
+        const b64 = dataURL.split(',')[1];
+        const raw = atob(b64);
+        const arr = new Uint8Array(raw.length);
+        for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+        return arr;
+    }
+    function arrayBufferToBase64(buf){
+        let binary=''; const bytes=new Uint8Array(buf);
+        for(let i=0;i<bytes.byteLength;i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+    }
+
+    // RN → Web 브리지
+    window.__LOAD_PDF = (path)=> loadPdfFromPath(path);
+    window.__CMD = (name)=>{
+        const pg = pages[currentPage-1];
+        if(name==='undo') doUndo(pg);
+        else if(name==='redo') doRedo(pg);
+        else if(name==='clear'){ pushHistory(pg); pg.dctx.clearRect(0,0,pg.drawCanvas.width, pg.drawCanvas.height); }
+        else if(name==='save') saveMerged();
+    };
+
+    // 준비 신호
+    RN?.postMessage(JSON.stringify({type:'READY'}));
+    refreshToolUI();
+</script>
+</body>
+</html>

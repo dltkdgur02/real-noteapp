@@ -1,3 +1,5 @@
+
+
 // server.js
 const express = require('express');
 const mongoose = require('mongoose');
@@ -52,6 +54,7 @@ function logRoutes() {
     });
     console.log('🧭 Mounted routes:\n' + lines.map(s => '  - ' + s).join('\n'));
 }
+
 
 // 8) DB 연결 후에만 listen
 const PORT = process.env.PORT || 5001;
