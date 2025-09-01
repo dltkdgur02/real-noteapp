@@ -1,41 +1,78 @@
 // app/pdf-viewer.tsx
 import React, { useMemo } from "react";
-import { View, ActivityIndicator, StyleSheet, Text, Platform, TouchableOpacity } from "react-native";
+import {
+    View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+} from "react-native";
 import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
+const norm = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v) ?? undefined;
+const safeDecode = (v?: string) => {
+    if (!v) return undefined;
+    try {
+        return decodeURIComponent(v);
+    } catch {
+        return v;
+    }
+};
+
 export default function PdfViewer() {
     const router = useRouter();
-    const { pdfUrl, noteId, name } = useLocalSearchParams<{ pdfUrl: string; noteId?: string; name?: string }>();
-    const isLocal = typeof pdfUrl === "string" && pdfUrl.startsWith("file://");
+    const params = useLocalSearchParams<{
+        pdfUri?: string | string[];
+        pdfUrl?: string | string[];
+        noteId?: string | string[];
+        name?: string | string[];
+    }>();
+
+    const rawPdf = norm(params.pdfUri) ?? norm(params.pdfUrl);
+    const name = norm(params.name) ?? "PDF";
+    const noteId = norm(params.noteId) ?? "";
+    const pdfUri = safeDecode(rawPdf);
+
+    const isLocal = typeof pdfUri === "string" && pdfUri.startsWith("file://");
 
     const accessDir = useMemo(() => {
-        if (!isLocal || !pdfUrl) return undefined;
-        return pdfUrl.replace(/[^/]+$/, ""); // 파일이 있는 디렉터리
-    }, [pdfUrl, isLocal]);
+        if (!isLocal || !pdfUri) return undefined;
+        return pdfUri.replace(/[^/]+$/, "");
+    }, [pdfUri, isLocal]);
 
-    if (!pdfUrl) {
+    if (!pdfUri) {
         return (
             <View style={styles.center}>
-                <Text>❌ PDF URL이 전달되지 않았다.</Text>
+                <Text>❌ PDF URI가 전달되지 않았다.</Text>
             </View>
         );
     }
 
-    // 보기 전용: WKWebView에게 파일/URL을 직접 주면 내부 뷰어가 다중 페이지 스크롤을 처리한다.
     return (
         <View style={{ flex: 1 }}>
+            {/* 상단 바 */}
             <View style={styles.topbar}>
+                {/* 👈 뒤로 가기 버튼 */}
+                <TouchableOpacity onPress={() => router.back()}>
+                    <Text style={styles.action}>뒤로</Text>
+                </TouchableOpacity>
+
                 <Text style={styles.title} numberOfLines={1}>
-                    {typeof name === "string" ? name : "PDF"}
+                    {name}
                 </Text>
+
                 <View style={{ flexDirection: "row", gap: 12 }}>
                     {/* 편집 화면으로 이동 */}
                     <TouchableOpacity
                         onPress={() =>
                             router.push({
                                 pathname: "/pdf-editor",
-                                params: { sourceUrl: pdfUrl, noteId: noteId ?? "", name: name ?? "" },
+                                params: {
+                                    pdfUri: encodeURIComponent(pdfUri),
+                                    noteId,
+                                    name,
+                                },
                             })
                         }
                     >
@@ -44,10 +81,11 @@ export default function PdfViewer() {
                 </View>
             </View>
 
+            {/* WebView */}
             <WebView
                 originWhitelist={["*"]}
-                source={{ uri: pdfUrl }}                   // ← http/https/file 모두 지원(https 권장)
-                allowingReadAccessToURL={accessDir}       // ← iOS에서 file:// 접근 허용
+                source={{ uri: pdfUri }}
+                allowingReadAccessToURL={accessDir}
                 allowFileAccess
                 allowUniversalAccessFromFileURLs
                 startInLoadingState
@@ -75,6 +113,6 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
     },
-    title: { fontSize: 16, fontWeight: "600", maxWidth: "70%" },
+    title: { fontSize: 16, fontWeight: "600", maxWidth: "50%" },
     action: { fontSize: 15, color: "#0a84ff", fontWeight: "600" },
 });

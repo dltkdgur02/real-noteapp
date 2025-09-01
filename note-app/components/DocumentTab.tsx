@@ -1,141 +1,69 @@
+// components/DocumentTab.tsx
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     ScrollView,
+    Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useRouter } from 'expo-router';
+
 import PlusIcon from '../assets/images/square-plus-button-icon.svg';
 import FolderIcon from '../assets/images/folder.svg';
 import NoteIcon from '../assets/images/noteicon.svg';
-import { useRouter } from 'expo-router';
+
 import { useFolderManager } from '../hooks/useFolderManager';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Crypto from 'expo-crypto';
-import { Note } from '@/types/note';
 import * as FileSystem from 'expo-file-system';
+
 import { getUserId } from '@/utils/auth';
-import { useNoteManager, uploadNoteToServer, deleteNote } from '@/hooks/useNoteManager';
-import { API_BASE } from "@/utils/api";
+import { Note } from '@/types/note';
+import {
+    useNoteManager,
+    uploadNoteToServer,
+    // deleteNote,
+} from '@/hooks/useNoteManager';
+import { API_BASE } from '@/utils/api';
 
-// 모달 컴포넌트
-import AddOptionsModal from '@/components/Modals/AddOptionsModal'
-import FolderFormModal from '@/components/Modals/FolderFormModal';
-import FolderMoveModal from '@/components/Modals/FolderMoveModal';
-import PdfUploadModal from '@/components/Modals/PdfUploadModal';
+// 모달 (현재 파일 기준 상대경로)
+import AddOptionsModal from './Modals/AddOptionsModal';
+import FolderFormModal from './Modals/FolderFormModal';
+import FolderMoveModal from './Modals/FolderMoveModal';
+import PdfUploadModal from './Modals/PdfUploadModal';
 
-async function resolveLocalPdfPathByNoteId(noteId: string): Promise<string | null> {
-    try {
-        const notesRoot = `${FileSystem.documentDirectory}notes/`;
-        const noteDir   = `${notesRoot}${noteId}.note/`;
-        const metaPath  = `${noteDir}metadata.json`;
+// ─────────────────────────────────────────────────────────────
+// UUID
+const generateUUID = async (): Promise<string> => {
+    const randomBytes = await Crypto.getRandomBytesAsync(16);
+    const hex = Array.from(randomBytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    return [
+        hex.substr(0, 8),
+        hex.substr(8, 4),
+        '4' + hex.substr(12, 3),
+        ((parseInt(hex.substr(16, 2), 16) & 0x3f) | 0x80).toString(16) +
+        hex.substr(18, 2),
+        hex.substr(20, 12),
+    ].join('-');
+};
 
-        console.log("🔎 복구 시작");
-        console.log("  • notesRoot:", notesRoot);
-        console.log("  • noteDir  :", noteDir);
-        console.log("  • metaPath :", metaPath);
+// note 객체에서 안전하게 id/name 추출
+const pickNoteId = (n: any): string =>
+    String(n?.noteId ?? n?._id ?? n?.id ?? '');
 
-        const metaInfo = await FileSystem.getInfoAsync(metaPath);
-        console.log("  • meta exists?:", metaInfo.exists);
+const pickNoteName = (n: any): string =>
+    String(n?.name ?? n?.fileName ?? '제목 없음');
 
-        if (metaInfo.exists) {
-            const metaRaw = await FileSystem.readAsStringAsync(metaPath);
-            let meta: any = {};
-            try { meta = JSON.parse(metaRaw); } catch (e) { console.warn("  • meta JSON parse 실패:", e); }
-
-            if (meta?.pdfPath) {
-                const pdfInfo = await FileSystem.getInfoAsync(meta.pdfPath);
-                console.log("  • meta.pdfPath exists?:", pdfInfo.exists);
-                if (pdfInfo.exists) return meta.pdfPath;
-            }
-            if (meta?.name) {
-                const guess1 = `${noteDir}${meta.name}.pdf`;
-                const guess2 = `${noteDir}${meta.name.replace(/\.pdf$/i, '')}.pdf`;
-                const g1 = await FileSystem.getInfoAsync(guess1);
-                const g2 = await FileSystem.getInfoAsync(guess2);
-                if (g1.exists) return guess1;
-                if (g2.exists) return guess2;
-            }
-        } else {
-            console.warn("  • metadata.json 없음. noteDir을 직접 스캔한다.");
-        }
-
-        const dirInfo = await FileSystem.getInfoAsync(noteDir);
-        if (dirInfo.exists) {
-            const children = await FileSystem.readDirectoryAsync(noteDir);
-            const pdfFile = children.find((f) => f.toLowerCase().endsWith(".pdf"));
-            if (pdfFile) {
-                const p = `${noteDir}${pdfFile}`;
-                const pi = await FileSystem.getInfoAsync(p);
-                if (pi.exists) return p;
-            }
-            const maybePdf = children.find((f) => f.toLowerCase().includes("pdf"));
-            if (maybePdf) {
-                const p = `${noteDir}${maybePdf}`;
-                const pi = await FileSystem.getInfoAsync(p);
-                if (pi.exists) return p;
-            }
-        }
-
-        console.warn("  • 복구 실패: 해당 noteId의 PDF를 찾지 못함");
-        return null;
-    } catch (e) {
-        console.error("❌ resolveLocalPdfPathByNoteId 실패:", e);
-        return null;
-    }
-}
-
-// 🌐 서버에서 이 노트의 PDF URL 조회 (백엔드에 맞게 엔드포인트 수정)
-async function fetchServerPdfUrl(noteId: string): Promise<string | null> {
-    try {
-        // 예시: GET /notes/:id → { fileUrl: "https://..." }
-        const res = await axios.get(`https://<YOUR_API_BASE>/notes/${noteId}`);
-        const url = res?.data?.fileUrl || res?.data?.pdfUrl;
-        if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
-            console.log("🌐 서버 fileUrl:", url);
-            return url;
-        }
-        console.warn("🌐 서버에 fileUrl 없음:", res?.data);
-        return null;
-    } catch (e) {
-        console.error("🌐 서버 fileUrl 조회 실패:", e);
-        return null;
-    }
-}
-
-// 🔗 사용자가 파일을 다시 선택해 이 노트에 연결(재링크)
-async function relinkPdfForNote(noteId: string, displayName: string) {
-    try {
-        const pick = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
-        if (pick.canceled || !pick.assets?.length) return null;
-        const pdf = pick.assets[0];
-
-        const notesRoot = `${FileSystem.documentDirectory}notes/`;
-        const noteDir   = `${notesRoot}${noteId}.note/`;
-        await FileSystem.makeDirectoryAsync(noteDir, { intermediates: true });
-
-        const target = `${noteDir}${pdf.name}`;
-        await FileSystem.copyAsync({ from: pdf.uri, to: target });
-
-        const metadataPath = `${noteDir}metadata.json`;
-        const meta = {
-            id: noteId,
-            name: displayName?.replace(/\.pdf$/i, '') || pdf.name.replace(/\.pdf$/i, ''),
-            createdAt: new Date().toISOString(),
-            pdfPath: target,
-        };
-        await FileSystem.writeAsStringAsync(metadataPath, JSON.stringify(meta));
-        console.log("🔗 재연결 완료:", target);
-        return target;
-    } catch (e) {
-        console.error("🔗 재연결 실패:", e);
-        return null;
-    }
-}
+// ─────────────────────────────────────────────────────────────
 
 export default function DocumentTab() {
     const router = useRouter();
+
+    // 폴더 훅
     const {
         folders,
         folderName,
@@ -158,28 +86,19 @@ export default function DocumentTab() {
         moveFolder,
     } = useFolderManager();
 
+    // 노트 훅 (루트의 노트만 표시)
+    const { notes: rootNotes, reloadNotes } = useNoteManager(null);
+
+    // 로컬 상태
     const [actionModalVisible, setActionModalVisible] = useState(false);
     const [colorEditMode, setColorEditMode] = useState(false);
     const [moveModalVisible, setMoveModalVisible] = useState(false);
     const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
     const [pdfModalVisible, setPdfModalVisible] = useState(false);
-    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-    const { reloadNotes } = useNoteManager(currentFolderId);
-    const { notes } = useNoteManager(null);
+    const [currentFolderId] = useState<string | null>(null);
     const [nameOnly, setNameOnly] = useState(false);
 
-    const generateUUID = async (): Promise<string> => {
-        const randomBytes = await Crypto.getRandomBytesAsync(16);
-        const hex = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-        return [
-            hex.substr(0, 8),
-            hex.substr(8, 4),
-            '4' + hex.substr(12, 3),
-            ((parseInt(hex.substr(16, 2), 16) & 0x3f) | 0x80).toString(16) + hex.substr(18, 2),
-            hex.substr(20, 12),
-        ].join('-');
-    };
-
+    // 폴더 이동
     const handleMove = (targetId: string) => {
         if (movingFolderId && targetId !== movingFolderId) {
             moveFolder(movingFolderId, targetId);
@@ -188,10 +107,13 @@ export default function DocumentTab() {
         setMovingFolderId(null);
     };
 
+    // PDF 업로드 → 로컬 보관 → 메타 작성 → 서버 메타 업로드
     const handlePickPdf = async () => {
         console.log('📂 handlePickPdf 함수 시작됨');
         try {
-            const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'application/pdf',
+            });
             if (result.canceled || !result.assets?.length) return;
 
             const pdf = result.assets[0];
@@ -200,30 +122,95 @@ export default function DocumentTab() {
 
             await FileSystem.makeDirectoryAsync(folderPath, { intermediates: true });
 
-            const pdfTargetPath = `${folderPath}${pdf.name}`;
+            const safeName = pdf.name || `${noteId}.pdf`;
+            const pdfTargetPath = `${folderPath}${safeName}`;
             await FileSystem.copyAsync({ from: pdf.uri, to: pdfTargetPath });
 
             const userId = await getUserId();
             if (!userId) {
-                console.warn('❗ userId 없음');
+                Alert.alert('오류', '사용자 ID가 없다.');
                 return;
             }
 
             const metadata: Note = {
                 id: noteId,
-                name: pdf.name.replace(/\.pdf$/, ''),
+                name: safeName.replace(/\.pdf$/i, ''),
                 createdAt: new Date().toISOString(),
-                pdfPath: pdfTargetPath,   // ✅ 이 경로가 클릭 시 복구 대상
+                pdfPath: pdfTargetPath,
                 folderId: currentFolderId,
                 userId,
             };
 
-            await FileSystem.writeAsStringAsync(`${folderPath}metadata.json`, JSON.stringify(metadata));
+            await FileSystem.writeAsStringAsync(
+                `${folderPath}metadata.json`,
+                JSON.stringify(metadata)
+            );
 
             console.log('📥 로컬 저장 완료:', metadata);
-            await uploadNoteToServer(metadata);
+            await uploadNoteToServer(metadata); // 메타 서버 저장
+            reloadNotes();
         } catch (err) {
             console.error('🚨 PDF 업로드 처리 중 오류:', err);
+            Alert.alert('오류', 'PDF 업로드 중 문제가 발생했다.');
+        }
+    };
+
+    // 보기 화면(웹뷰 렌더) 열기
+    const openViewer = async (note: any) => {
+        const id = pickNoteId(note);
+        const name = pickNoteName(note);
+        if (!id) {
+            Alert.alert('오류', '노트 식별자를 찾을 수 없다.');
+            return;
+        }
+
+        try {
+            console.log('👉 보기 진입:', note);
+            const url = `${API_BASE}/api/notes/${id}/file`;
+            const target = `${FileSystem.documentDirectory}${id}.viewer.pdf`;
+            console.log('[DocTab] 보기용 다운로드 시작:', url, '→', target);
+            const { uri } = await FileSystem.downloadAsync(url, target);
+            console.log('[DocTab] 보기용 다운로드 완료:', uri);
+
+            router.push({
+                pathname: '/pdf-viewer',
+                params: { pdfUrl: encodeURIComponent(uri), noteId: id, name },
+            });
+        } catch (e) {
+            console.error('[DocTab] 보기 열기 실패:', e);
+            Alert.alert('오류', 'PDF를 열지 못했다.');
+        }
+    };
+
+    // 편집 화면 열기 (길게 눌러 오픈)
+    const openEditor = async (note: any) => {
+        const id = pickNoteId(note);
+        const name = pickNoteName(note);
+        if (!id) {
+            Alert.alert('오류', '노트 식별자를 찾을 수 없다.');
+            return;
+        }
+
+        try {
+            const url = `${API_BASE}/api/notes/${id}/file`;
+            const target = `${FileSystem.documentDirectory}${id}.editor.pdf`;
+            console.log('[DocTab] 편집용 다운로드 시작:', url, '→', target);
+
+            const { uri } = await FileSystem.downloadAsync(url, target);
+            console.log('[DocTab] 편집용 다운로드 완료:', uri);
+
+            // ✅ 반드시 encodeURIComponent
+            const params = {
+                pdfUri: encodeURIComponent(uri),
+                name,
+                noteId: id,
+            };
+            console.log('[DocTab] push params:', params);
+
+            router.push({ pathname: '/pdf-editor', params });
+        } catch (e) {
+            console.error('[DocTab] 편집 진입 실패:', e);
+            Alert.alert('오류', '편집기를 열지 못했다.');
         }
     };
 
@@ -245,104 +232,104 @@ export default function DocumentTab() {
                         </View>
                     </TouchableOpacity>
 
-                    {/* 📁 폴더 목록 */}
-                    {folders.filter(f => f.parentId === null).map((folder, index) => (
-                        <View key={folder._id} style={styles.folderContainer}>
-                            <TouchableOpacity
-                                style={styles.folderItem}
-                                onPress={() => router.push(`/folder/${folder._id}`)}
-                            >
-                                <FolderIcon width={150} height={150} color={folder.color || '#999'} />
-                            </TouchableOpacity>
-
-                            <View style={styles.folderLabelRow}>
-                                <Text style={styles.folderText}>{folder.name}</Text>
-                                <TouchableOpacity onPress={() => setOptionsVisible(optionsVisible === index ? null : index)}>
-                                    <Text style={styles.dropdown}>▼</Text>
+                    {/* 📁 상위(루트) 폴더 목록 */}
+                    {folders
+                        .filter((f) => f.parentId === null)
+                        .map((folder, index) => (
+                            <View key={folder._id} style={styles.folderContainer}>
+                                <TouchableOpacity
+                                    style={styles.folderItem}
+                                    onPress={() => router.push(`/folder/${folder._id}`)}
+                                >
+                                    <FolderIcon
+                                        width={150}
+                                        height={150}
+                                        color={folder.color || '#999'}
+                                    />
                                 </TouchableOpacity>
-                            </View>
 
-                            {optionsVisible === index && (
-                                <View style={styles.dropdownBox}>
-                                    <TouchableOpacity onPress={() => {
-                                        setSelectedIndex(index);
-                                        setEditMode(true);
-                                        setFolderName(folder.name);
-                                        setFolderColor(folder.color || '#FFD700');
-                                        setFolderModalVisible(true);
-                                        setOptionsVisible(null);
-                                    }}>
-                                        <Text style={styles.dropdownOption}>이름 변경</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => deleteFolder(folder._id)}>
-                                        <Text style={styles.dropdownOption}>폴더 삭제</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => {
-                                        setSelectedIndex(index);
-                                        setColorEditMode(true);
-                                        setFolderModalVisible(true);
-                                        setFolderColor(folder.color || '#FFD700');
-                                        setOptionsVisible(null);
-                                    }}>
-                                        <Text style={styles.dropdownOption}>색상 변경</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => {
-                                        setMovingFolderId(folder._id);
-                                        setMoveModalVisible(true);
-                                        setOptionsVisible(null);
-                                    }}>
-                                        <Text style={styles.dropdownOption}>폴더 이동</Text>
+                                <View style={styles.folderLabelRow}>
+                                    <Text style={styles.folderText}>{folder.name}</Text>
+                                    <TouchableOpacity
+                                        onPress={() =>
+                                            setOptionsVisible(optionsVisible === index ? null : index)
+                                        }
+                                    >
+                                        <Text style={styles.dropdown}>▼</Text>
                                     </TouchableOpacity>
                                 </View>
-                            )}
-                        </View>
-                    ))}
 
-                    {/* 📄 노트 목록 (PDF) */}
-                    {notes.map((note) => (
-                        <View
-                            key={note.noteId || note._id}   // ✅ 고유한 key 보장
-                            style={styles.folderContainer}
-                        >
-                            <TouchableOpacity
-                                style={styles.folderItem}
-                                // (중략) Note 아이템 onPress 부분
-                                onPress={async () => {
-                                    try {
-                                        console.log("👉 PDF 클릭:", note);
-                                        // 이미 서버 스트리밍을 바로 여는 경우:
-                                        // const fileUrl = `${API_BASE}/api/notes/${note.noteId}/file`;
-                                        // router.push({ pathname: "/pdf-viewer", params: { pdfUrl: fileUrl, noteId: note.noteId, name: note.name } });
+                                {optionsVisible === index && (
+                                    <View style={styles.dropdownBox}>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setSelectedIndex(index);
+                                                setEditMode(true);
+                                                setFolderName(folder.name);
+                                                setFolderColor(folder.color || '#FFD700');
+                                                setFolderModalVisible(true);
+                                                setOptionsVisible(null);
+                                            }}
+                                        >
+                                            <Text style={styles.dropdownOption}>이름 변경</Text>
+                                        </TouchableOpacity>
 
-                                        // 로컬 캐시 후 열기 (ATS 회피용)
-                                        const url = `${API_BASE}/api/notes/${note.noteId}/file`;
-                                        const target = `${FileSystem.documentDirectory}${note.noteId}.pdf`;
-                                        const result = await FileSystem.downloadAsync(url, target);
-                                        router.push({
-                                            pathname: "/pdf-viewer",
-                                            params: { pdfUrl: result.uri, noteId: note.noteId, name: note.name },
-                                        });
-                                    } catch (err) {
-                                        console.error("❌ PDF 열기 실패:", err);
-                                    }
-                                }}
-                            >
-                                <NoteIcon width={120} height={120} />
-                            </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => deleteFolder(folder._id)}>
+                                            <Text style={styles.dropdownOption}>폴더 삭제</Text>
+                                        </TouchableOpacity>
 
-                            <Text
-                                style={styles.folderText}
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                            >
-                                {note.name}
-                            </Text>
-                        </View>
-                    ))}
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setSelectedIndex(index);
+                                                setColorEditMode(true);
+                                                setFolderModalVisible(true);
+                                                setFolderColor(folder.color || '#FFD700');
+                                                setOptionsVisible(null);
+                                            }}
+                                        >
+                                            <Text style={styles.dropdownOption}>색상 변경</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setMovingFolderId(folder._id);
+                                                setMoveModalVisible(true);
+                                                setOptionsVisible(null);
+                                            }}
+                                        >
+                                            <Text style={styles.dropdownOption}>폴더 이동</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+
+                    {/* 📄 루트 노트 목록 (PDF 아이콘) */}
+                    {rootNotes.map((note: any) => {
+                        const id = pickNoteId(note);
+                        return (
+                            <View key={id} style={styles.folderContainer}>
+                                <TouchableOpacity
+                                    style={styles.folderItem}
+                                    onPress={() => openViewer(note)}
+                                    onLongPress={() => openEditor(note)} // 길게 눌러 편집 열기
+                                >
+                                    <NoteIcon width={120} height={120} />
+                                </TouchableOpacity>
+                                <Text
+                                    style={styles.folderText}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                >
+                                    {pickNoteName(note)}
+                                </Text>
+                            </View>
+                        );
+                    })}
                 </View>
             </ScrollView>
 
-            {/* ✅ 모달 컴포넌트들 */}
+            {/* 모달들 */}
             <AddOptionsModal
                 visible={actionModalVisible}
                 onClose={() => setActionModalVisible(false)}
@@ -394,7 +381,7 @@ export default function DocumentTab() {
                 onClose={() => setPdfModalVisible(false)}
                 onPickPdf={async () => {
                     await handlePickPdf();
-                    reloadNotes(); // 노트 목록 갱신
+                    reloadNotes();
                 }}
                 currentFolderId={currentFolderId}
             />
@@ -437,10 +424,7 @@ const styles = StyleSheet.create({
         gap: 4,
         marginTop: 6,
     },
-    folderText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
+    folderText: { fontSize: 14, fontWeight: '500' },
     dropdown: { fontSize: 16 },
     dropdownBox: {
         marginTop: 4,
@@ -448,20 +432,5 @@ const styles = StyleSheet.create({
         backgroundColor: '#eee',
         borderRadius: 8,
     },
-    dropdownOption: {
-        paddingVertical: 4,
-        fontSize: 14,
-    },
-    noteItem: {
-        width: 150,
-        height: 150,
-        borderRadius: 12,
-        backgroundColor: '#fff',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    noteTitle: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
+    dropdownOption: { paddingVertical: 4, fontSize: 14 },
 });
