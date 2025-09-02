@@ -5,6 +5,9 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { WebView } from "react-native-webview";
 import { runAI, prompts } from "../utils/ai";
+import NoteSelectModal from "./Modals/NoteSelectModal";
+import { useFolderManager } from "../hooks/useFolderManager";
+import { useNoteManager } from "../hooks/useNoteManager";
 
 
 export default function AiTab() {
@@ -14,6 +17,11 @@ export default function AiTab() {
   const [wvReady, setWvReady] = useState(false);
   const [result, setResult] = useState("");
   const webRef = useRef<WebView>(null);
+    const { folders } = useFolderManager();
+    const { notes } = useNoteManager(null); // 루트 노트 가져오기
+    const [selectVisible, setSelectVisible] = useState(false);
+    const [selectedAction, setSelectedAction] = useState<"summary" | "quiz" | null>(null);
+
 
   const pickPdf = async () => {
     const res = await DocumentPicker.getDocumentAsync({ type: "application/pdf", multiple: false });
@@ -79,15 +87,23 @@ export default function AiTab() {
       </View>
 
       <ScrollView contentContainerStyle={styles.grid}>
-        <Pressable style={styles.card}>
+        <Pressable
+          style={styles.card}
+          onPress={() => { setSelectedAction("summary"); setSelectVisible(true); }}
+        >
           <Text style={styles.cardIcon}>📑</Text>
           <Text style={styles.cardText}>PDF 요약</Text>
         </Pressable>
 
-        <Pressable style={styles.card}>
+
+        <Pressable
+          style={styles.card}
+          onPress={() => { setSelectedAction("quiz"); setSelectVisible(true); }}
+        >
           <Text style={styles.cardIcon}>❓</Text>
           <Text style={styles.cardText}>문제 생성</Text>
         </Pressable>
+
 
         <Pressable style={styles.card}>
           <Text style={styles.cardIcon}>📝</Text>
@@ -109,7 +125,17 @@ export default function AiTab() {
                 <Text style={styles.cardText}>예시 444</Text>
         </Pressable>
       </ScrollView>
-
+    <NoteSelectModal
+      visible={selectVisible}
+      onClose={() => setSelectVisible(false)}
+      folders={folders}
+      onSelect={(item) => {
+        // item이 노트면 여기서 처리
+        setSelectVisible(false);
+        if (selectedAction === "summary") runSummary();
+        else if (selectedAction === "quiz") {/* runQuiz() */}
+      }}
+    />
     </View>
   );
 
