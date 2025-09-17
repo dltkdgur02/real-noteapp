@@ -289,7 +289,16 @@ const EDITOR_HTML = `<!doctype html>
 
   function redraw(p){
     inkx.clearRect(0,0,ink.width,ink.height);
-    for(const s of S(strokes,p)) drawStroke(s);
+    // 먼저 기존 div 제거
+    wrap.querySelectorAll('.textbox').forEach(el => el.remove());
+
+    for(const s of S(strokes,p)){
+      if(s.tool === 'text'){
+        restoreTextBox(s);
+      } else {
+        drawStroke(s);
+      }
+    }
   }
   function drawStroke(s){
     const pts=s.points; if(!pts||pts.length<2) return;
@@ -301,6 +310,76 @@ const EDITOR_HTML = `<!doctype html>
     for(let i=1;i<pts.length;i++) inkx.lineTo(pts[i].x,pts[i].y);
     inkx.stroke(); inkx.restore();
   }
+
+  function restoreTextBox(s){
+    const div = document.createElement('div');
+    div.className = "textbox";   // 중요!
+    div.contentEditable = true;
+    div.textContent = s.text || "텍스트";
+    div.style.position = "absolute";
+    div.style.left = s.x + "px";
+    div.style.top = s.y + "px";
+    div.style.minWidth = "40px";
+    div.style.padding = "2px 4px";
+    div.style.font = "14px/1.4 -apple-system,system-ui";
+    div.style.background = "rgba(255,255,255,0.8)";
+    div.style.border = "1px solid #ccc";
+    div.style.borderRadius = "4px";
+    div.style.color = "#111";
+    wrap.appendChild(div);
+
+    div.__strokeRef = s;
+    div.addEventListener('input', ()=>{ s.text = div.textContent; });
+    makeDraggable(div, s);
+  }
+
+
+  function redraw(p){
+    inkx.clearRect(0,0,ink.width,ink.height);
+    // 먼저 기존 div 제거
+    wrap.querySelectorAll('.textbox').forEach(el => el.remove());
+
+    for(const s of S(strokes,p)){
+      if(s.tool === 'text'){
+        restoreTextBox(s);
+      } else {
+        drawStroke(s);
+      }
+    }
+  }
+
+  function makeDraggable(div, strokeObj) {
+    let isDragging = false;
+    let startX = 0, startY = 0, origX = 0, origY = 0;
+
+    div.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      isDragging = true;
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      origX = parseInt(div.style.left, 10);
+      origY = parseInt(div.style.top, 10);
+      e.preventDefault();
+    }, { passive: false });
+
+    div.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      div.style.left = origX + dx + "px";
+      div.style.top = origY + dy + "px";
+      strokeObj.x = origX + dx;
+      strokeObj.y = origY + dy;
+      e.preventDefault();
+    }, { passive: false });
+
+    div.addEventListener('touchend', () => {
+      isDragging = false;
+    });
+  }
+
 
   function b64ToU8(b64){
     const ch=32768, chunks=[]; for(let i=0;i<b64.length;i+=ch){
@@ -376,6 +455,34 @@ const EDITOR_HTML = `<!doctype html>
     return { x:(cx-r.left)*(ink.width/r.width), y:(cy-r.top)*(ink.height/r.height) };
   }
 
+  function placeTextBox(p){
+    const div = document.createElement('div');
+    div.className = "textbox";   // 중요!
+    div.contentEditable = true;
+    div.textContent = '텍스트';
+    div.style.cssText =
+      "position:absolute;" +
+      "left:" + p.x + "px;" +
+      "top:" + p.y + "px;" +
+      "min-width:40px;" +
+      "padding:2px 4px;" +
+      "font:14px/1.4 -apple-system,system-ui;" +
+      "background:rgba(255,255,255,0.8);" +
+      "border:1px solid #ccc;" +
+      "border-radius:4px;" +
+      "color:#111;";
+    wrap.appendChild(div);
+    div.focus();
+
+    const strokeObj = { tool:'text', x:p.x, y:p.y, text:div.textContent, page };
+    div.__strokeRef = strokeObj;
+    S(strokes,page).push(strokeObj);
+
+    div.addEventListener('input', ()=>{ strokeObj.text = div.textContent; });
+    makeDraggable(div, strokeObj);
+  }
+
+
   function begin(e){
     if(isTouch(e)) return;            // 손가락은 스와이프/스크롤 전용
     if(!isPen(e) || rendering) return;
@@ -385,9 +492,14 @@ const EDITOR_HTML = `<!doctype html>
     drawing=true;
 
     if(mode==='eraser'){ erasePath=[xy(e)]; return; }
+     if(mode==='text'){
+        placeTextBox(xy(e));
+        return;
+      }
     cur={tool:(mode==='hl'?'hl':'pen'), color, width, page, points:[]};
     addPoint(e);
   }
+
   function addPoint(e){
     const pts = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     for(const ev of pts){
@@ -441,7 +553,7 @@ const EDITOR_HTML = `<!doctype html>
     if(d.type==='LOAD_PDF') openBase64(d.payload?.base64||'');
     if(d.type==='PING') post('READY',{ok:true});
     if(d.type==='SAVE_ANN'){
-      const all=[]; Object.keys(strokes).forEach(k=>{ const p=parseInt(k,10); (strokes[p]||[]).forEach(s=>all.push(s)); }); 
+      const all=[]; Object.keys(strokes).forEach(k=>{ const p=parseInt(k,10); (strokes[p]||[]).forEach(s=>all.push(s)); });
       post('ANN_SNAPSHOT',{items:all});
     }
     if(d.type==='PREV' && !rendering && page>1){ page--; renderPage(page); }
@@ -490,6 +602,9 @@ const EDITOR_HTML = `<!doctype html>
           </button>
           <button class="btn icon" data-mode="eraser" title="지우개">
             <svg viewBox="0 0 24 24"><path d="M19 14l-7-7a2 2 0 0 0-3 0L4 12a2 2 0 0 0 0 3l3 3h9"/><path d="M7 17l5-5"/></svg>
+          </button>
+          <button class="btn icon" data-mode="text" title="텍스트">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16M12 4v16"/></svg>
           </button>
           <button class="btn icon" data-mode="pan" title="이동/손">
             <svg viewBox="0 0 24 24"><path d="M12 22s6-3 6-8V7a2 2 0 0 0-4 0v3"/><path d="M8 10V6a2 2 0 0 1 4 0v6"/><path d="M8 10a2 2 0 0 0-4 2v1"/></svg>
