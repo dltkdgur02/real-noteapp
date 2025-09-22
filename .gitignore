@@ -1,0 +1,10 @@
+
+# secrets
+.env
+.env.*
+*.env
+note-app-server/.env
+note-app/.env
+*.env
+.env*
+
