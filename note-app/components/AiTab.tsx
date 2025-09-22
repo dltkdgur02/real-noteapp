@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { WebView } from "react-native-webview";
 import NoteSelectModal from "./Modals/NoteSelectModal";
 import { useFolderManager } from "../hooks/useFolderManager";

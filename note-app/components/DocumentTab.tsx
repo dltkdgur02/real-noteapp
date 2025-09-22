@@ -17,7 +17,7 @@ import NoteIcon from '../assets/images/noteicon.svg';
 import { useFolderManager } from '../hooks/useFolderManager';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Crypto from 'expo-crypto';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { getUserId } from '@/utils/auth';
 import { Note } from '@/types/note';
