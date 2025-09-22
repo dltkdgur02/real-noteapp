@@ -1,6 +1,6 @@
 // hooks/useNoteManager.ts
 import { useEffect, useState } from 'react';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 import { API_BASE } from '@/utils/api';
 import { getUserId } from '@/utils/auth';

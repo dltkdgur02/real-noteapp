@@ -49,7 +49,3 @@ expo-env.d.ts
 *.p12
 *.p8
 *.orig.*
-# secrets
-.env
-.env.*
-*.env
