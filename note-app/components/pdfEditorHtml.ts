@@ -39,11 +39,11 @@ export const EDITOR_HTML = `<!doctype html>
   .sheet{
     position:fixed; top:calc(var(--bar-h) + 6px); right:8px; z-index:40;
     background:#fff; color:#111; border-radius:12px; border:1px solid #e5e7eb; padding:10px;
-    box-shadow:0 12px 28px rgba(0,0,0,.2); display:none; min-width:180px;
+    box-shadow:0 12px 28px rgba(0,0,0,.2); display:none; min-width:200px;
   }
   .sheet.show{display:block;}
   .sheet .row{gap:8px}
-  .sheet label{font:600 12px -apple-system,system-ui; color:#334155; width:42px}
+  .sheet label{font:600 12px -apple-system,system-ui; color:#334155; width:56px}
   .sheet input[type="range"]{width:140px}
 
   /* PDF 영역 */
@@ -53,10 +53,12 @@ export const EDITOR_HTML = `<!doctype html>
   }
   #wrap{position:relative; margin:0 auto;}
   #pdf,#ink{position:absolute; top:0; left:0;}
+  #pdf{z-index:1;}
+  #ink{z-index:2;}
 
   /* 스크롤/필기 분리 */
-  #ink{touch-action:pan-y;}            /* 손가락은 세로 스크롤 허용 */
-  .inking #ink{touch-action:none;}     /* 펜 입력 시 스크롤 차단 */
+  #ink{touch-action:pan-y;}
+  .inking #ink{touch-action:none;}
   .inking #stage{overflow:hidden !important;}
 
   /* 페이지 표시 */
@@ -66,6 +68,34 @@ export const EDITOR_HTML = `<!doctype html>
 
   /* 로딩 레이어 */
   #loading{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#64748b; font:12px -apple-system,system-ui}
+
+  /* ===== 텍스트 박스 ===== */
+  .textbox{
+    position:absolute;
+    min-width:80px; min-height:32px; max-width:90%;
+    padding:6px 8px;
+    border:1px dashed rgba(255,255,255,.4);
+    border-radius:6px;
+    background:rgba(0,0,0,.35);
+    color:#fff;
+    font-size:14px; line-height:1.35;
+    outline:none;
+    user-select:text; -webkit-user-select:text;
+    touch-action:none;
+    z-index:3;
+  }
+  .textbox[contenteditable="true"] { cursor:text; }
+  .textbox.dragging { opacity:.85; border-style:solid; }
+  .textbox .resize{
+    position:absolute; width:12px; height:12px;
+    right:-6px; bottom:-6px; border-radius:2px;
+    background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.35);
+    cursor:se-resize;
+  }
+  .textbox.selected{
+    box-shadow:0 0 0 2px rgba(80,180,255,.9);
+    border-color:rgba(80,180,255,.9);
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
@@ -76,13 +106,26 @@ export const EDITOR_HTML = `<!doctype html>
   let mode='pen', color='#111111', width=4, eraser=14;
   const strokes={}, undo={}, redo={}; const S=(m,k)=> (m[k]??=([]));
   let stage, wrap, cv, ctx, ink, inkx, loading, ptext;
-  let sheetColor, sheetWidth;
+  let sheetColor, sheetWidth, sheetText;
+
+  /* ===== 텍스트 박스 상태 ===== */
+  let textColor = '#ffffff';
+  let textSize  = 14;
+  let dragState = null;
+  let resizeState = null;
+
+  /* ===== LocalStorage Keys ===== */
+  const DOC_KEY = (document.title || '__DOC__');
+  const LS_PREFIX = 'annot_textboxes_v1:' + DOC_KEY + ':';
+  const LS_STROKES_PREFIX = 'annot_strokes_v1:' + DOC_KEY + ':';
+  const tk = (n)=> LS_PREFIX + 'p' + String(n);
+  const sk = (n)=> LS_STROKES_PREFIX + 'p' + String(n);
 
   function fitScale(pg){
     const pad = 24;
     const containerW = Math.max(320, stage.clientWidth - pad);
     const vp1 = pg.getViewport({scale:1});
-    const cssScale = containerW / vp1.width;     // fit-to-width
+    const cssScale = containerW / vp1.width;
     const dpr = Math.max(1, Math.min(window.devicePixelRatio||1, 2));
     return { cssScale, pixelScale: cssScale * dpr };
   }
@@ -104,10 +147,15 @@ export const EDITOR_HTML = `<!doctype html>
 
       wrap.style.width = vpCss.width+'px';
       wrap.style.height = vpCss.height+'px';
+      wrap.dataset.page = String(n);
 
       await pg.render({ canvasContext: ctx, viewport: vpPix, transform: [1,0,0,1,0,0] }).promise;
 
+      /* 복원: strokes -> redraw -> 텍스트 박스 */
+      loadStrokes(n);
       redraw(n);
+      restoreTextboxesForPage(n);
+
       ptext.textContent = n + '/' + pages;
     } finally { rendering=false; loading.style.display='none'; }
   }
@@ -127,6 +175,7 @@ export const EDITOR_HTML = `<!doctype html>
     inkx.stroke(); inkx.restore();
   }
 
+  /* ===== Base64 → PDF 열기 ===== */
   function b64ToU8(b64){
     const ch=32768, chunks=[]; for(let i=0;i<b64.length;i+=ch){
       const bin=atob(b64.slice(i,i+ch)); const u=new Uint8Array(bin.length);
@@ -143,15 +192,15 @@ export const EDITOR_HTML = `<!doctype html>
     renderPage(page);
   }
 
-  /* ====== 손가락 가로 스와이프 → 페이지 이동 ====== */
+  /* ====== 가로 스와이프 → 페이지 이동 (자동 저장 통합) ====== */
   let swipeState = { startX:0, startY:0, dx:0, dy:0, t0:0, active:false };
-  let swipeLock = false;               // 연타 방지/렌더 충돌 방지
-  const SWIPE_MIN = 50;                // 최소 이동(px)
-  const SWIPE_MAX_TIME = 600;          // 최대 제스처 시간(ms)
-  const SWIPE_DIR_RATIO = 1.5;         // |dx|가 |dy|보다 충분히 커야 가로로 인식
+  let swipeLock = false;
+  const SWIPE_MIN = 50;
+  const SWIPE_MAX_TIME = 600;
+  const SWIPE_DIR_RATIO = 1.5;
 
   function onTouchStart(e){
-    if (rendering) return;             // 렌더 중 차단
+    if (rendering) return;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     swipeState = { startX:t.clientX, startY:t.clientY, dx:0, dy:0, t0:Date.now(), active:true };
@@ -161,10 +210,8 @@ export const EDITOR_HTML = `<!doctype html>
     const t = e.touches[0];
     swipeState.dx = t.clientX - swipeState.startX;
     swipeState.dy = t.clientY - swipeState.startY;
-
-    // 가로 제스처가 확실하면 기본 스크롤 막아 떨림 방지
     if (Math.abs(swipeState.dx) > 20 && Math.abs(swipeState.dx) > Math.abs(swipeState.dy) * SWIPE_DIR_RATIO){
-      e.preventDefault(); // 세로 스크롤보다 스와이프 우선
+      e.preventDefault();
     }
   }
   function onTouchEnd(){
@@ -172,7 +219,6 @@ export const EDITOR_HTML = `<!doctype html>
     const dt = Date.now() - swipeState.t0;
     const { dx, dy } = swipeState;
     swipeState.active = false;
-
     if (swipeLock || rendering) return;
 
     const isHorizontal = Math.abs(dx) > Math.abs(dy) * SWIPE_DIR_RATIO;
@@ -181,16 +227,13 @@ export const EDITOR_HTML = `<!doctype html>
 
     if (isHorizontal && farEnough && fastEnough){
       swipeLock = true;
-      if (dx < 0 && page < pages){      // 왼쪽으로 밀면 다음 페이지
-        page++; renderPage(page);
-      } else if (dx > 0 && page > 1){   // 오른쪽으로 밀면 이전 페이지
-        page--; renderPage(page);
-      }
-      setTimeout(()=>{ swipeLock=false; }, 350); // 쿨다운
+      if (dx < 0 && page < pages){ gotoPage(page+1); }
+      else if (dx > 0 && page > 1){ gotoPage(page-1); }
+      setTimeout(()=>{ swipeLock=false; }, 350);
     }
   }
 
-  /* ===== 입력: Apple Pencil(혹은 stylus)만 필기 (기존 유지) ===== */
+  /* ===== 입력 (펜만 필기) ===== */
   let drawing=false, cur=null, erasePath=[], pending=null;
   const isPen = (e)=> e.pointerType==='pen';
   const isTouch = (e)=> e.pointerType==='touch';
@@ -202,8 +245,9 @@ export const EDITOR_HTML = `<!doctype html>
   }
 
   function begin(e){
-    if(isTouch(e)) return;            // 손가락은 스와이프/스크롤 전용
+    if(isTouch(e)) return;
     if(!isPen(e) || rendering) return;
+    if(mode==='text') return; // 텍스트 모드에서는 펜 입력 차단
     e.preventDefault();
     document.body.classList.add('inking');
     ink.setPointerCapture(e.pointerId);
@@ -234,11 +278,6 @@ export const EDITOR_HTML = `<!doctype html>
       });
     }
   }
-  function move(e){
-    if(isTouch(e) || !drawing) return; e.preventDefault();
-    if(mode==='eraser'){ erasePath.push(xy(e)); return; }
-    addPoint(e);
-  }
   function end(e){
     if(isTouch(e)) return;
     if(!drawing) return;
@@ -246,7 +285,10 @@ export const EDITOR_HTML = `<!doctype html>
     drawing=false;
     document.body.classList.remove('inking');
     if(mode==='eraser'){ applyErase(erasePath); erasePath=[]; return; }
-    if(cur && cur.points.length>=2){ S(strokes,page).push(cur); }
+    if(cur && cur.points.length>=2){
+      S(strokes,page).push(cur);
+      saveStrokes(page); // 자동 저장
+    }
     cur=null;
   }
 
@@ -257,9 +299,220 @@ export const EDITOR_HTML = `<!doctype html>
       for(const sp of s.points){ for(const ep of path){ if(d2(sp,ep)<=r2) continue outer; } }
       keep.push(s);
     }
-    strokes[page]=keep; redraw(page);
+    strokes[page]=keep; redraw(page); saveStrokes(page);
   }
 
+  /* ===== 텍스트 박스 유틸 (자동 저장 포함) ===== */
+  function pageXY(ev){
+    const r = wrap.getBoundingClientRect();
+    const cx = (ev.clientX ?? (ev.touches?.[0]?.clientX || 0)) - r.left + wrap.scrollLeft;
+    const cy = (ev.clientY ?? (ev.touches?.[0]?.clientY || 0)) - r.top  + wrap.scrollTop;
+    return { x: cx, y: cy };
+  }
+
+  function selectBox(box){
+    document.querySelectorAll('.textbox.selected').forEach(el=>el.classList.remove('selected'));
+    box.classList.add('selected');
+  }
+  function isEditing(box){ return box.contentEditable === 'true'; }
+  function setEditing(box, on){
+    box.contentEditable = on ? 'true' : 'false';
+    if(on){
+      box.focus();
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  // 텍스트 박스 저장: 현재 wrap 크기도 함께 저장하여 복원 시 비율 스케일링
+  function persistPage(n){
+    try{
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      const arr=[];
+      wrap.querySelectorAll('.textbox').forEach(box=>{
+        arr.push({
+          left: parseFloat(box.style.left)||0,
+          top:  parseFloat(box.style.top)||0,
+          width: parseFloat(box.style.width)||box.offsetWidth,
+          height: parseFloat(box.style.height)||box.offsetHeight,
+          color: box.style.color || '#fff',
+          fontSize: parseInt(box.style.fontSize||'14',10),
+          html: box.innerHTML
+        });
+      });
+      localStorage.setItem(tk(n), JSON.stringify({W,H,items:arr}));
+    }catch{}
+  }
+
+  function clearTextboxes(){
+    wrap.querySelectorAll('.textbox').forEach(n=>n.remove());
+  }
+
+  function restoreTextboxesForPage(n){
+    clearTextboxes();
+    const raw = localStorage.getItem(tk(n));
+    if(!raw) return;
+    let data; try{ data = JSON.parse(raw); }catch{ return; }
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const W0 = data?.W||wrap.clientWidth, H0=data?.H||wrap.clientHeight;
+    const sx = (wrap.clientWidth / (W0||1));
+    const sy = (wrap.clientHeight / (H0||1));
+    items.forEach(item=>{
+      const box = createTextbox(item.left*sx, item.top*sy, {
+        width:  (item.width*sx),
+        height: (item.height*sy),
+        color:  item.color,
+        fontSize: Math.max(10, Math.round(item.fontSize* ((sx+sy)/2) )),
+        html:   item.html
+      });
+      setEditing(box,false);
+    });
+  }
+
+  function createTextbox(x, y, opts={}){
+    const box = document.createElement('div');
+    box.className='textbox';
+    box.contentEditable='false';
+    box.style.left = Math.max(4, x - 40) + 'px';
+    box.style.top  = Math.max(4, y - 16) + 'px';
+    box.style.width  = (opts.width  || 160) + 'px';
+    box.style.height = (opts.height || 40)  + 'px';
+    box.style.color = opts.color || textColor;
+    box.style.fontSize = (opts.fontSize || textSize) + 'px';
+    box.innerHTML = opts.html || '텍스트 입력';
+
+    const handle = document.createElement('div');
+    handle.className='resize';
+    box.appendChild(handle);
+
+    // 선택/더블탭 편집
+    let lastTap=0;
+    box.addEventListener('click',(e)=>{
+      const now=Date.now();
+      if(now - lastTap < 300){ setEditing(box,true); }
+      lastTap=now;
+      selectBox(box);
+      e.stopPropagation();
+    });
+
+    // 드래그 이동
+    box.addEventListener('pointerdown', (e)=>{
+      if(e.target===handle) return;
+      dragState = {
+        box, startX:e.clientX, startY:e.clientY,
+        origLeft: parseFloat(box.style.left)||0,
+        origTop:  parseFloat(box.style.top)||0
+      };
+      box.setPointerCapture(e.pointerId);
+      box.classList.add('dragging');
+    });
+    box.addEventListener('pointermove',(e)=>{
+      if(!dragState || dragState.box!==box) return;
+      const dx=e.clientX - dragState.startX;
+      const dy=e.clientY - dragState.startY;
+      box.style.left = Math.max(0, dragState.origLeft + dx) + 'px';
+      box.style.top  = Math.max(0, dragState.origTop  + dy) + 'px';
+    });
+    box.addEventListener('pointerup',(e)=>{
+      if(dragState?.box===box){
+        box.releasePointerCapture(e.pointerId);
+        box.classList.remove('dragging');
+        dragState=null;
+        persistPage(page);
+      }
+    });
+
+    // 리사이즈
+    handle.addEventListener('pointerdown',(e)=>{
+      e.stopPropagation();
+      resizeState = {
+        box, startX:e.clientX, startY:e.clientY,
+        origW: parseFloat(box.style.width)||box.offsetWidth,
+        origH: parseFloat(box.style.height)||box.offsetHeight
+      };
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove',(e)=>{
+      if(!resizeState || resizeState.box!==box) return;
+      const dx=e.clientX - resizeState.startX;
+      const dy=e.clientY - resizeState.startY;
+      const w = Math.max(80, resizeState.origW + dx);
+      const h = Math.max(32, resizeState.origH + dy);
+      box.style.width = w + 'px';
+      box.style.height= h + 'px';
+    });
+    handle.addEventListener('pointerup',(e)=>{
+      if(resizeState?.box===box){
+        handle.releasePointerCapture(e.pointerId);
+        resizeState=null;
+        persistPage(page);
+      }
+    });
+
+    // 포커스 아웃 → 저장
+    box.addEventListener('blur', ()=>{
+      if(isEditing(box)){
+        setEditing(box,false);
+        persistPage(page);
+      }
+    }, true);
+
+    // 삭제: 선택 상태에서 백스페이스/딜리트 (편집 중이 아닐 때)
+    box.addEventListener('keydown',(e)=>{
+      if(e.key==='Escape'){ setEditing(box,false); }
+      if((e.key==='Backspace' || e.key==='Delete') && !isEditing(box)){
+        box.remove();
+        persistPage(page);
+      }
+    });
+
+    wrap.appendChild(box);
+    selectBox(box);
+    return box;
+  }
+
+  function onWrapClick(ev){
+    if(mode!=='text') return;
+    if(ev.target.closest('.textbox')) return;
+    const {x,y} = pageXY(ev);
+    const box = createTextbox(x,y,{ color:textColor, fontSize:textSize, html:'텍스트 입력' });
+    setTimeout(()=> setEditing(box,true), 0);
+    persistPage(page);
+  }
+
+  /* ===== Strokes 저장/복원(해상도 보정 포함) ===== */
+  function saveStrokes(n){
+    try{
+      const W = ink.width, H = ink.height;
+      const arr = (S(strokes,n)||[]).map(s => ({
+        tool: s.tool, color: s.color, width: s.width,
+        points: s.points, canvasW: W, canvasH: H
+      }));
+      localStorage.setItem(sk(n), JSON.stringify({W,H,items:arr}));
+    }catch{}
+  }
+
+  function loadStrokes(n){
+    const raw = localStorage.getItem(sk(n));
+    S(strokes,n).length = 0; // reset in-memory
+    if(!raw) return;
+    let data; try{ data = JSON.parse(raw); }catch{ return; }
+    const W0 = data?.W || ink.width, H0 = data?.H || ink.height;
+    const sx = ink.width / (W0||1);
+    const sy = ink.height / (H0||1);
+    const sItems = Array.isArray(data?.items) ? data.items : [];
+    for(const s of sItems){
+      const pts = (s.points||[]).map(p => ({ x: p.x*sx, y: p.y*sy }));
+      const wScaled = Math.max(1, s.width * ((sx+sy)/2));
+      S(strokes,n).push({ tool:s.tool, color:s.color, width:wScaled, page:n, points:pts });
+    }
+  }
+
+  /* ===== 공용 메시지/버튼 ===== */
   function onMsg(ev){
     let d=ev.data; try{ if(typeof d==='string') d=JSON.parse(d);}catch(_){}
     if(!d||!d.type) return;
@@ -269,23 +522,86 @@ export const EDITOR_HTML = `<!doctype html>
       const all=[]; Object.keys(strokes).forEach(k=>{ const p=parseInt(k,10); (strokes[p]||[]).forEach(s=>all.push(s)); }); 
       post('ANN_SNAPSHOT',{items:all});
     }
-    if(d.type==='PREV' && !rendering && page>1){ page--; renderPage(page); }
-    if(d.type==='NEXT' && !rendering && page<pages){ page++; renderPage(page); }
-    if(d.type==='UNDO'){ const u=S(undo,page); if(u.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(redo,page).push(cur); strokes[page]=u.pop(); redraw(page); } }
-    if(d.type==='REDO'){ const r=S(redo,page); if(r.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(undo,page).push(cur); strokes[page]=r.pop(); redraw(page); } }
-    if(d.type==='CLEAR'){ const u=S(undo,page); u.push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=[]; redraw(page); }
+    if(d.type==='PREV' && !rendering && page>1){ gotoPage(page-1); }
+    if(d.type==='NEXT' && !rendering && page<pages){ gotoPage(page+1); }
+    if(d.type==='UNDO'){
+      const u=S(undo,page);
+      if(u.length){
+        const curCopy=JSON.parse(JSON.stringify(S(strokes,page)));
+        S(redo,page).push(curCopy);
+        strokes[page]=u.pop();
+        redraw(page); saveStrokes(page);
+      }
+    }
+    if(d.type==='REDO'){
+      const r=S(redo,page);
+      if(r.length){
+        const curCopy=JSON.parse(JSON.stringify(S(strokes,page)));
+        S(undo,page).push(curCopy);
+        strokes[page]=r.pop();
+        redraw(page); saveStrokes(page);
+      }
+    }
+    if(d.type==='CLEAR'){
+      const u=S(undo,page);
+      u.push(JSON.parse(JSON.stringify(S(strokes,page))));
+      strokes[page]=[]; redraw(page); saveStrokes(page);
+    }
     if(d.type==='SET_MODE'){ setMode(d.payload?.mode||'pen'); }
     if(d.type==='SET_COLOR'){ setColor(d.payload?.color||'#111111'); }
     if(d.type==='SET_WIDTH'){ setWidth(d.payload?.width||4); }
     if(d.type==='SET_ERASER_RADIUS'){ setEraser(d.payload?.eraserRadius||14); }
     if(d.type==='BACK'){ post('BACK'); }
-    if(d.type==='EXTRACT_TEXT'){ extractText(); }
+    if(d.type==='EXTRACT_TEXT'){ /* AI 제거됨: 무시 */ }
+    if(d.type==='SET_TEXT_STYLE'){
+      const p=d.payload||{};
+      if(typeof p.color==='string') textColor=p.color;
+      if(typeof p.fontSize==='number') textSize=p.fontSize|0;
+      syncToolbar();
+    }
+    if(d.type==='EXPORT_TEXTBOXES'){
+      const out=[]; wrap.querySelectorAll('.textbox').forEach(box=>{
+        out.push({
+          page,
+          left: parseFloat(box.style.left)||0,
+          top:  parseFloat(box.style.top)||0,
+          width: parseFloat(box.style.width)||box.offsetWidth,
+          height: parseFloat(box.style.height)||box.offsetHeight,
+          color: box.style.color||'#fff',
+          fontSize: parseInt(box.style.fontSize||'14',10),
+          html: box.innerHTML
+        });
+      });
+      post('TEXTBOXES',{payload:out});
+    }
+    if(d.type==='IMPORT_TEXTBOXES'){
+      try{
+        const list = Array.isArray(d.payload) ? d.payload : [];
+        const cur = list.filter(it=> (it.page||page)===page).map(it=>{
+          return {left:it.left, top:it.top, width:it.width, height:it.height, color:it.color, fontSize:it.fontSize, html:it.html};
+        });
+        localStorage.setItem(tk(page), JSON.stringify({W:wrap.clientWidth,H:wrap.clientHeight,items:cur}));
+        restoreTextboxesForPage(page);
+      }catch{}
+    }
   }
 
   function setMode(m){ mode=m; syncToolbar(); }
   function setColor(c){ color=c; syncToolbar(); }
   function setWidth(w){ width=w; syncToolbar(); }
   function setEraser(r){ eraser=r; syncToolbar(); }
+
+  /* ===== 페이지 이동 헬퍼(자동 저장 포함) ===== */
+  function persistCurrentPage(){
+    persistPage(page);
+    saveStrokes(page);
+  }
+  function gotoPage(n){
+    if(n===page) return;
+    persistCurrentPage();
+    page = n;
+    renderPage(page);
+  }
 
   window.addEventListener('message', onMsg);
   document.addEventListener('message', onMsg);
@@ -319,6 +635,10 @@ export const EDITOR_HTML = `<!doctype html>
           <button class="btn icon" data-mode="pan" title="이동/손">
             <svg viewBox="0 0 24 24"><path d="M12 22s6-3 6-8V7a2 2 0 0 0-4 0v3"/><path d="M8 10V6a2 2 0 0 1 4 0v6"/><path d="M8 10a2 2 0 0 0-4 2v1"/></svg>
           </button>
+          <!-- 텍스트 도구 -->
+          <button class="btn icon" data-mode="text" id="textTool" title="텍스트">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M12 6v12"/></svg>
+          </button>
         </div>
       </div>
       <div class="row" id="right">
@@ -328,6 +648,10 @@ export const EDITOR_HTML = `<!doctype html>
           </button>
           <button class="btn icon" id="widthBtn" title="굵기">
             <svg viewBox="0 0 24 24"><path d="M4 6h12"/><path d="M4 12h16"/><path d="M4 18h8"/></svg>
+          </button>
+          <!-- 텍스트 스타일 버튼 -->
+          <button class="btn icon" id="textBtn" title="텍스트 스타일">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M12 6v12"/></svg>
           </button>
         </div>
         <div class="seg">
@@ -363,6 +687,20 @@ export const EDITOR_HTML = `<!doctype html>
     \`;
     document.body.appendChild(sheetWidth);
 
+    /* 텍스트 스타일 시트 */
+    sheetText=document.createElement('div'); sheetText.className='sheet'; sheetText.innerHTML=\`
+      <div class="row">
+        <label>색상</label>
+        <input id="tColor" type="color" value="\${textColor}">
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <label>크기</label>
+        <input id="tSize" type="range" min="10" max="48" step="1" value="\${textSize}">
+        <span id="tSizeVal">\${textSize}px</span>
+      </div>
+    \`;
+    document.body.appendChild(sheetText);
+
     const pager=document.createElement('div'); pager.id='pager'; pager.innerHTML=\`<span id="ptext">1/?</span>\`;
     document.body.appendChild(pager); ptext=document.getElementById('ptext');
 
@@ -380,21 +718,25 @@ export const EDITOR_HTML = `<!doctype html>
     ink.addEventListener('pointerup',    end,   {passive:false});
     ink.addEventListener('pointercancel',end,   {passive:false});
 
-    /* 손가락 스와이프 이벤트(세로 스크롤과 겹치지 않게 stage에 바인딩) */
+    /* 텍스트 박스 생성 클릭은 wrap에 */
+    wrap.addEventListener('click', onWrapClick, {passive:true});
+
+    /* 손가락 스와이프 이벤트 */
     stage.addEventListener('touchstart', onTouchStart, {passive:true});
     stage.addEventListener('touchmove',  onTouchMove,  {passive:false});
     stage.addEventListener('touchend',   onTouchEnd,   {passive:true});
     stage.addEventListener('touchcancel',()=>{ swipeState.active=false; }, {passive:true});
 
-    /* 버튼 핸들러 */
-    document.getElementById('back').onclick =()=> post('BACK');
-    document.getElementById('prev').onclick =()=>{ if(!rendering && page>1){ page--; renderPage(page);} };
-    document.getElementById('next').onclick =()=>{ if(!rendering && page<pages){ page++; renderPage(page);} };
-    document.getElementById('undo').onclick =()=>{ const u=S(undo,page); if(u.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(redo,page).push(cur); strokes[page]=u.pop(); redraw(page);} };
-    document.getElementById('redo').onclick =()=>{ const r=S(redo,page); if(r.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(undo,page).push(cur); strokes[page]=r.pop(); redraw(page);} };
-    document.getElementById('save').onclick =()=>{ const all=[]; Object.keys(strokes).forEach(k=>{ const p=parseInt(k,10); (strokes[p]||[]).forEach(s=>all.push(s)); }); post('ANN_SNAPSHOT',{items:all}); };
-    document.getElementById('paletteBtn').onclick=()=>{ sheetWidth.classList.remove('show'); sheetColor.classList.toggle('show'); };
-    document.getElementById('widthBtn').onclick  =()=>{ sheetColor.classList.remove('show'); sheetWidth.classList.toggle('show'); };
+    /* 버튼 핸들러 (페이지 이동도 자동 저장 포함) */
+    document.getElementById('back').onclick =()=> { persistCurrentPage(); post('BACK'); };
+    document.getElementById('prev').onclick =()=>{ if(!rendering && page>1){ gotoPage(page-1);} };
+    document.getElementById('next').onclick =()=>{ if(!rendering && page<pages){ gotoPage(page+1);} };
+    document.getElementById('undo').onclick =()=>{ const u=S(undo,page); if(u.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(redo,page).push(cur); strokes[page]=u.pop(); redraw(page); saveStrokes(page);} };
+    document.getElementById('redo').onclick =()=>{ const r=S(redo,page); if(r.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(undo,page).push(cur); strokes[page]=r.pop(); redraw(page); saveStrokes(page);} };
+    document.getElementById('save').onclick =()=>{ persistCurrentPage(); const all=[]; Object.keys(strokes).forEach(k=>{ const p=parseInt(k,10); (strokes[p]||[]).forEach(s=>all.push(s)); }); post('ANN_SNAPSHOT',{items:all}); };
+    document.getElementById('paletteBtn').onclick=()=>{ sheetWidth.classList.remove('show'); sheetText.classList.remove('show'); sheetColor.classList.toggle('show'); };
+    document.getElementById('widthBtn').onclick  =()=>{ sheetColor.classList.remove('show'); sheetText.classList.remove('show'); sheetWidth.classList.toggle('show'); };
+    document.getElementById('textBtn').onclick   =()=>{ sheetColor.classList.remove('show'); sheetWidth.classList.remove('show'); sheetText.classList.toggle('show'); };
 
     sheetColor.addEventListener('click',(e)=>{
       const d=e.target.closest('.dot'); if(!d) return;
@@ -409,6 +751,13 @@ export const EDITOR_HTML = `<!doctype html>
     wRange.oninput=(e)=>{ setWidth(parseInt(e.target.value,10)); wVal.textContent=width+'px'; };
     eRange.oninput=(e)=>{ setEraser(parseInt(e.target.value,10)); eVal.textContent=eraser+'px'; };
 
+    // 텍스트 스타일 핸들러
+    const tColor=sheetText.querySelector('#tColor');
+    const tSize =sheetText.querySelector('#tSize');
+    const tSizeVal=sheetText.querySelector('#tSizeVal');
+    tColor.oninput=(e)=>{ textColor = e.target.value; syncToolbar(); };
+    tSize.oninput =(e)=>{ textSize  = parseInt(e.target.value,10); tSizeVal.textContent = textSize+'px'; syncToolbar(); };
+
     document.getElementById('tools').addEventListener('click',(e)=>{
       const t=e.target.closest('[data-mode]'); if(!t) return;
       setMode(t.dataset.mode);
@@ -416,7 +765,12 @@ export const EDITOR_HTML = `<!doctype html>
 
     syncToolbar();
     post('READY',{ok:true});
-    window.addEventListener('resize', ()=>{ if(pdf) renderPage(page); }, {passive:true});
+    // 리사이즈 시에도 현재 페이지 저장 후 재렌더 → 비율 복원
+    window.addEventListener('resize', ()=>{
+      if(!pdf) return;
+      persistCurrentPage();
+      renderPage(page);
+    }, {passive:true});
   });
 
   function syncToolbar(){
@@ -425,6 +779,12 @@ export const EDITOR_HTML = `<!doctype html>
     const wVal=document.getElementById('wVal'), eVal=document.getElementById('eVal');
     if(wVal) wVal.textContent = width+'px';
     if(eVal) eVal.textContent = eraser+'px';
+    const tSizeVal=document.getElementById('tSizeVal');
+    if(tSizeVal) tSizeVal.textContent = textSize+'px';
+    const tColor=document.getElementById('tColor');
+    if(tColor && tColor.value!==textColor) tColor.value=textColor;
+    const tSize=document.getElementById('tSize');
+    if(tSize && parseInt(tSize.value,10)!==textSize) tSize.value=String(textSize);
   }
 </script>
 </head>
