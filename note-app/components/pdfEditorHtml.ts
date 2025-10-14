@@ -6,7 +6,10 @@ export const EDITOR_HTML = `<!doctype html>
 <title>__DOC_TITLE__</title>
 <style>
   :root{ --bar-h:48px; --btn:28px; --bg:#1f3a63; --fg:#fff; --muted:#cbd5e1; }
-  html,body{margin:0;height:100%; overflow-y:auto; overflow-x:hidden; background:#111;}
+  html,body{
+    margin:0;height:100%; overflow:hidden; background:#111;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
   #topbar{
     position:fixed; inset:0 0 auto 0; height:var(--bar-h);
     display:flex; align-items:center; justify-content:space-between;
@@ -23,11 +26,61 @@ export const EDITOR_HTML = `<!doctype html>
   .btn.icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
   .btn.active{background:rgba(255,255,255,.22);}
   .btn:hover{background:rgba(255,255,255,.12);}
-  .dot{width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.6);display:inline-block}
-  .dot[data-c="#111111"]{background:#111111} .dot[data-c="#ef4444"]{background:#ef4444}
-  .dot[data-c="#22c55e"]{background:#22c55e} .dot[data-c="#3b82f6"]{background:#3b82f6}
-  .dot[data-c="#facc15"]{background:#facc15} .dot[data-c="#a855f7"]{background:#a855f7}
-  .dot.active{outline:2px solid #fff; outline-offset:1px}
+  #stage{
+    position:absolute; left:0; right:0; top:var(--bar-h); bottom:0;
+    overflow: hidden; 
+    -webkit-overflow-scrolling:touch; background:#fff;
+  }
+  #wrap{position:relative; margin:0 auto;}
+  #pdf,#ink,#highlight-canvas{position:absolute; top:0; left:0; pointer-events:none;}
+  #event-shield {
+    position:absolute; top:0; left:0; width:100%; height:100%; z-index: 100;
+  }
+  #text-input {
+    position: absolute; z-index: 110; border: 1px dashed #3b82f6;
+    outline: none; background-color: rgba(255, 255, 224, 0.9);
+    font-family: -apple-system, system-ui, sans-serif;
+    line-height: 1.2; resize: none; display: none; padding: 4px; border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  #selection-box {
+    position: absolute; border: 1.5px solid #0ea5e9;
+    pointer-events: none; display: none; z-index: 105;
+  }
+  .handle {
+    position: absolute;
+    width: 20px; height: 20px;
+    background-color: #fff;
+    border: 1.5px solid #0ea5e9;
+    border-radius: 50%;
+    pointer-events: auto;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 12px;
+    color: #0ea5e9;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .handle.br { bottom: -10px; right: -10px; cursor: nwse-resize; }
+  .handle.tl { top: -10px; left: -10px; cursor: move; }
+  .handle.tr { top: -10px; right: -10px; cursor: pointer; color: #ef4444; border-color: #ef4444;}
+  
+  #eraser-cursor {
+    position: fixed;
+    display: none;
+    pointer-events: none;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    backdrop-filter: invert(10%);
+    z-index: 120;
+    transform: translate(-50%, -50%);
+  }
+
+  .inking #event-shield{ touch-action:none; }
+  #pager{ position:fixed; left:50%; bottom:8px; transform:translateX(-50%);
+    background:rgba(255,255,255,.93); border:1px solid #e5e7eb; border-radius:999px;
+    padding:4px 10px; font:600 12px -apple-system,system-ui; color:#111; box-shadow:0 4px 16px rgba(0,0,0,.08); z-index:15; }
+  #loading{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#64748b; font:12px -apple-system,system-ui; z-index:200;}
   .sheet{
     position:fixed; top:calc(var(--bar-h) + 6px); right:8px; z-index:40;
     background:#fff; color:#111; border-radius:12px; border:1px solid #e5e7eb; padding:10px;
@@ -36,82 +89,30 @@ export const EDITOR_HTML = `<!doctype html>
   .sheet.show{display:block;} .sheet .row{gap:8px}
   .sheet label{font:600 12px -apple-system,system-ui; color:#334155; width:42px}
   .sheet input[type="range"]{width:140px}
-  #stage{
-    position:absolute; left:0; right:0; top:var(--bar-h); bottom:0;
-    overflow:auto; -webkit-overflow-scrolling:touch; background:#fff;
-  }
-  #wrap{position:relative; margin:0 auto;}
-  #pdf,#ink,#highlight-canvas{position:absolute; top:0; left:0;}
-  #highlight-canvas{ pointer-events:none; }
-  #text-input {
-    position: absolute;
-    z-index: 50;
-    border: 1px dashed #3b82f6;
-    outline: none;
-    background-color: rgba(255, 255, 255, 0.85);
-    font-family: -apple-system, system-ui, sans-serif;
-    line-height: 1.2;
-    resize: none;
-    display: none;
-    padding: 2px;
-    border-radius: 2px;
-  }
-  #selection-box {
-    position: absolute;
-    border: 1.5px solid #0ea5e9;
-    pointer-events: none;
-    display: none;
-    z-index: 45;
-  }
-  .resize-handle {
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    background-color: #fff;
-    border: 1.5px solid #0ea5e9;
-    border-radius: 50%;
-    pointer-events: auto;
-  }
-  .resize-handle.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
-  .move-handle {
-      position: absolute;
-      top: -26px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 20px;
-      height: 20px;
-      background: #0ea5e9;
-      border-radius: 50%;
-      cursor: move;
-      pointer-events: auto;
-  }
-  #ink{touch-action:pan-y;}
-  .inking #ink{touch-action:none;}
-  .inking #stage{overflow:hidden !important; touch-action:none !important;}
-  #pager{ position:fixed; left:50%; bottom:8px; transform:translateX(-50%);
-    background:rgba(255,255,255,.93); border:1px solid #e5e7eb; border-radius:999px;
-    padding:4px 10px; font:600 12px -apple-system,system-ui; color:#111; box-shadow:0 4px 16px rgba(0,0,0,.08); z-index:15; }
-  #loading{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#64748b; font:12px -apple-system,system-ui}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script>
+  // @ts-nocheck
   const RN=window.ReactNativeWebView, post=(t,x={})=>RN.postMessage(JSON.stringify({type:t,...x}));
   pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
   let pdf, page=1, pages=1, rendering=false;
   let mode='pen', color='#111111', width=4, eraser=14;
   const strokes={}, undo={}, redo={}; const S=(m,k)=> (m[k]??=([]));
-  let stage, wrap, cv, ctx, ink, inkx, loading, ptext, hl, hlx;
+  let stage, wrap, cv, ctx, ink, inkx, loading, ptext, hl, hlx, shield, eraserCursor;
   let sheetColor, sheetWidth;
   let searchQuery = '', searchResults = [], currentResultIdx = -1;
-  let selectedStroke = null, selectionBox = null;
+  let selectedStroke = null, editingStroke = null, selectionBox = null;
   let dragInfo = { active: false, type: null, startX: 0, startY: 0, stroke: null, original: null };
 
   function fitScale(pg){
     const pad = 24;
-    const containerW = Math.max(320, stage.clientWidth - pad);
+    const containerW = stage.clientWidth - pad;
+    const containerH = stage.clientHeight - pad;
     const vp1 = pg.getViewport({scale:1});
-    const cssScale = containerW / vp1.width;
+    const scaleW = containerW / vp1.width;
+    const scaleH = containerH / vp1.height;
+    const cssScale = Math.min(scaleW, scaleH);
     const dpr = Math.max(1, Math.min(window.devicePixelRatio||1, 2));
     return { cssScale, pixelScale: cssScale * dpr };
   }
@@ -124,21 +125,19 @@ export const EDITOR_HTML = `<!doctype html>
       const { cssScale, pixelScale } = fitScale(pg);
       const vpCss = pg.getViewport({scale: cssScale});
       const vpPix = pg.getViewport({scale: pixelScale});
-      
       hl.width = ink.width = cv.width = vpPix.width;
       hl.height = ink.height = cv.height = vpPix.height;
       hl.style.width = ink.style.width = cv.style.width = "100%";
       hl.style.height = ink.style.height = cv.style.height = "auto";
-      
       wrap.style.width = vpCss.width+'px';
       wrap.style.height = vpCss.height+'px';
-
       await pg.render({ canvasContext: ctx, viewport: vpPix }).promise;
-      
       page = n;
       redraw(n);
       ptext.textContent = n + '/' + pages;
-    } finally { rendering=false; loading.style.display='none'; }
+    } finally { rendering=false; loading.style.display='none'; 
+    post('PAGE_RENDERED');
+    }
   }
   
   async function drawHighlights() {
@@ -146,16 +145,13 @@ export const EDITOR_HTML = `<!doctype html>
     hlx.clearRect(0, 0, hl.width, hl.height);
     const pageResults = searchResults.filter(r => r.pageNum === page);
     if (pageResults.length === 0) return;
-
     const pg = await pdf.getPage(page);
     const { pixelScale } = fitScale(pg);
-    
     hlx.fillStyle = 'rgba(255, 210, 0, 0.4)';
     pageResults.forEach(res => {
         const { transform, width, height } = res.item;
         hlx.fillRect(transform[4] * pixelScale, (transform[5] - height) * pixelScale, width * pixelScale, height * pixelScale);
     });
-
     if (currentResultIdx > -1 && searchResults[currentResultIdx].pageNum === page) {
         const res = searchResults[currentResultIdx];
         hlx.fillStyle = 'rgba(255, 120, 0, 0.5)';
@@ -168,11 +164,8 @@ export const EDITOR_HTML = `<!doctype html>
     if (searchResults.length === 0) return;
     currentResultIdx = (index + searchResults.length) % searchResults.length;
     const result = searchResults[currentResultIdx];
-    if (result.pageNum !== page) {
-      await renderPage(result.pageNum);
-    } else {
-      await drawHighlights();
-    }
+    if (result.pageNum !== page) await renderPage(result.pageNum);
+    else await drawHighlights();
     const pg = await pdf.getPage(result.pageNum);
     const { cssScale } = fitScale(pg);
     const itemTopCss = (result.item.transform[5] - result.item.height) * cssScale;
@@ -188,8 +181,7 @@ export const EDITOR_HTML = `<!doctype html>
           await drawHighlights();
           return;
       }
-      loading.textContent = \`"\${searchQuery}" 검색 중...\`;
-      loading.style.display = 'flex';
+      loading.textContent = \`"\${searchQuery}" 검색 중...\`; loading.style.display = 'flex';
       const pagePromises = Array.from({length: pages}, (_, i) => pdf.getPage(i + 1));
       const pdfPages = await Promise.all(pagePromises);
       const textContentPromises = pdfPages.map(p => p.getTextContent());
@@ -204,14 +196,12 @@ export const EDITOR_HTML = `<!doctype html>
       });
       searchResults = results;
       loading.style.display = 'none'; loading.textContent = '불러오는 중…';
-      if (searchResults.length > 0) {
-          await navigateToResult(0);
-      } else {
-          document.getElementById('search-status').textContent = '0/0';
-      }
+      if (searchResults.length > 0) await navigateToResult(0);
+      else document.getElementById('search-status').textContent = '0/0';
   }
 
   function redraw(p){
+    if (!inkx) return;
     inkx.clearRect(0,0,ink.width,ink.height);
     for(const s of S(strokes,p)) drawStroke(s);
     drawHighlights();
@@ -220,26 +210,28 @@ export const EDITOR_HTML = `<!doctype html>
   function drawStroke(s) {
     inkx.save();
     if (s.tool === 'text') {
-      inkx.fillStyle = s.color;
+      const pad = s.fontSize * 0.4;
       inkx.font = \`\${s.fontSize}px sans-serif\`;
       const lines = s.text.split('\\n');
-      lines.forEach((line, i) => {
-        inkx.fillText(line, s.x, s.y + (i * s.fontSize * 1.2));
-      });
+      const textMetrics = lines.map(line => inkx.measureText(line));
+      const width = Math.max(...textMetrics.map(m => m.width));
+      const height = lines.length * s.fontSize * 1.2;
+      
+      inkx.fillStyle = 'rgba(255, 255, 150, 0.4)';
+      inkx.fillRect(s.x - pad/2, s.y - s.fontSize * 0.9 - pad/2, width + pad, height + pad);
+      
+      inkx.fillStyle = s.color;
+      lines.forEach((line, i) => inkx.fillText(line, s.x, s.y + (i * s.fontSize * 1.2)));
+
     } else {
       const pts = s.points;
       if (!pts || pts.length < 2) { inkx.restore(); return; }
       if (s.tool === 'hl') {
-        inkx.globalAlpha = 0.28;
-        inkx.strokeStyle = s.color;
-        inkx.lineWidth = s.width * 1.6;
+        inkx.globalAlpha = 0.28; inkx.strokeStyle = s.color; inkx.lineWidth = s.width * 1.6;
       } else {
-        inkx.globalAlpha = 1;
-        inkx.strokeStyle = s.color;
-        inkx.lineWidth = s.width;
+        inkx.globalAlpha = 1; inkx.strokeStyle = s.color; inkx.lineWidth = s.width;
       }
-      inkx.lineCap = 'round';
-      inkx.lineJoin = 'round';
+      inkx.lineCap = 'round'; inkx.lineJoin = 'round';
       inkx.beginPath();
       inkx.moveTo(pts[0].x, pts[0].y);
       for (let i = 1; i < pts.length; i++) inkx.lineTo(pts[i].x, pts[i].y);
@@ -251,15 +243,16 @@ export const EDITOR_HTML = `<!doctype html>
   function createTextbox(e) {
     const textInput = document.getElementById('text-input');
     if (!textInput || !pdf) return;
-    if (textInput.style.display === 'block' && textInput.value.trim() !== '') {
-      drawTextOnCanvas(textInput);
-    }
+    if (textInput.style.display === 'block') drawTextOnCanvas(textInput);
+    
+    editingStroke = null;
+
     pdf.getPage(page).then(pg => {
         const { cssScale } = fitScale(pg);
         const pos = xy(e);
-        const canvasRect = ink.getBoundingClientRect();
-        textInput.style.left = \`\${pos.x * (canvasRect.width / ink.width)}px\`;
-        textInput.style.top = \`\${pos.y * (canvasRect.height / ink.height)}px\`;
+        const wrapRect = wrap.getBoundingClientRect();
+        textInput.style.left = \`\${pos.x / (ink.width / wrapRect.width)}px\`;
+        textInput.style.top = \`\${pos.y / (ink.height / wrapRect.height)}px\`;
         textInput.style.fontSize = \`\${20 * cssScale}px\`;
         textInput.style.color = color;
         textInput.value = '';
@@ -271,39 +264,45 @@ export const EDITOR_HTML = `<!doctype html>
 
   function drawTextOnCanvas(inputElement) {
     const text = inputElement.value.trim();
-    if (!text) {
-        inputElement.style.display = 'none';
-        drawing = false;
-        return;
+    
+    if (editingStroke) {
+      if (text) {
+        editingStroke.text = text;
+        const wrapRect = wrap.getBoundingClientRect();
+        editingStroke.x = parseFloat(inputElement.style.left) * (ink.width / wrapRect.width);
+        editingStroke.y = parseFloat(inputElement.style.top) * (ink.height / wrapRect.height) + editingStroke.fontSize * 0.9;
+      } else {
+        const strokesOnPage = S(strokes, editingStroke.page);
+        const index = strokesOnPage.indexOf(editingStroke);
+        if (index > -1) strokesOnPage.splice(index, 1);
+      }
+    } else if (text) {
+      const wrapRect = wrap.getBoundingClientRect();
+      const x = parseFloat(inputElement.style.left) * (ink.width / wrapRect.width);
+      const y = parseFloat(inputElement.style.top) * (ink.height / wrapRect.height);
+      const fontSize = parseFloat(inputElement.style.fontSize) * (ink.width / wrapRect.width);
+      const newStroke = { tool: 'text', text, color, fontSize, x: x, y: y + fontSize * 0.9, page: page };
+      S(strokes, page).push(newStroke);
     }
-    const canvasRect = ink.getBoundingClientRect();
-    const x = parseFloat(inputElement.style.left) * (ink.width / canvasRect.width);
-    const y = parseFloat(inputElement.style.top) * (ink.height / canvasRect.height);
-    const fontSize = parseFloat(inputElement.style.fontSize) * (ink.width / canvasRect.width);
-    const newStroke = {
-      tool: 'text', text, color, fontSize,
-      x: x, y: y + fontSize * 0.9, page: page
-    };
-    S(strokes, page).push(newStroke);
+
     redraw(page);
-    inputElement.value = '';
-    inputElement.style.display = 'none';
-    drawing = false;
+    saveData();
+    inputElement.value = ''; inputElement.style.display = 'none';
+    drawing = false; editingStroke = null;
   }
   
   function getStrokeAtPoint(p) {
     const pageStrokes = S(strokes, page) || [];
     for (const s of [...pageStrokes].reverse()) {
       if (s.tool === 'text') {
+        const pad = s.fontSize * 0.4;
         inkx.font = \`\${s.fontSize}px sans-serif\`;
         const lines = s.text.split('\\n');
-        const textMetrics = lines.map(line => inkx.measureText(line));
-        const width = Math.max(...textMetrics.map(m => m.width));
+        const width = Math.max(...lines.map(line => inkx.measureText(line).width));
         const height = lines.length * s.fontSize * 1.2;
-        const x = s.x, y = s.y - s.fontSize * 0.9;
-        if (p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height) {
-          return s;
-        }
+        const x1 = s.x - pad/2, y1 = s.y - s.fontSize * 0.9 - pad/2;
+        const x2 = x1 + width + pad, y2 = y1 + height + pad;
+        if (p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2) return s;
       }
     }
     return null;
@@ -311,33 +310,28 @@ export const EDITOR_HTML = `<!doctype html>
 
   function showSelectionBox(s) {
     if (!s || s.tool !== 'text') {
-      selectionBox.style.display = 'none';
-      return;
+      selectionBox.style.display = 'none'; return;
     }
-    const canvasRect = ink.getBoundingClientRect();
-    const scaleX = canvasRect.width / ink.width;
-    const scaleY = canvasRect.height / ink.height;
-
+    const wrapRect = wrap.getBoundingClientRect();
+    const scaleX = wrapRect.width / ink.width;
+    const scaleY = wrapRect.height / ink.height;
+    
+    const pad = s.fontSize * 0.4;
     inkx.font = \`\${s.fontSize}px sans-serif\`;
     const lines = s.text.split('\\n');
     const width = Math.max(...lines.map(line => inkx.measureText(line).width));
     const height = lines.length * s.fontSize * 1.2;
 
-    selectionBox.style.left = \`\${s.x * scaleX}px\`;
-    selectionBox.style.top = \`\${(s.y - s.fontSize * 0.9) * scaleY}px\`;
-    selectionBox.style.width = \`\${width * scaleX}px\`;
-    selectionBox.style.height = \`\${height * scaleY}px\`;
+    selectionBox.style.left = \`\${(s.x - pad/2) * scaleX}px\`;
+    selectionBox.style.top = \`\${(s.y - s.fontSize * 0.9 - pad/2) * scaleY}px\`;
+    selectionBox.style.width = \`\${(width + pad) * scaleX}px\`;
+    selectionBox.style.height = \`\${(height + pad) * scaleY}px\`;
     selectionBox.style.display = 'block';
   }
 
   function startDrag(e, type) {
-    e.stopPropagation();
-    if (!selectedStroke) return;
-    dragInfo = {
-      active: true, type, stroke: selectedStroke,
-      startX: e.clientX, startY: e.clientY,
-      original: { ...selectedStroke }
-    };
+    e.stopPropagation(); if (!selectedStroke) return;
+    dragInfo = { active: true, type, stroke: selectedStroke, startX: e.clientX, startY: e.clientY, original: { ...selectedStroke } };
     document.body.style.cursor = e.target.style.cursor;
   }
 
@@ -353,31 +347,37 @@ export const EDITOR_HTML = `<!doctype html>
     await renderPage(page);
   }
 
-  let swipeState = { startX:0, startY:0, dx:0, dy:0, t0:0, active:false };
+  let swipeState = { startX:0, startY:0, dx:0, dy:0, t0:0, active:false, startScrollTop:0 };
   let swipeLock = false;
   const SWIPE_MIN = 50, SWIPE_MAX_TIME = 600, SWIPE_DIR_RATIO = 1.5;
 
   function onTouchStart(e){
-    if (rendering || drawing || e.touches.length !== 1) return;
     const t = e.touches[0];
-    swipeState = { startX:t.clientX, startY:t.clientY, dx:0, dy:0, t0:Date.now(), active:true };
+    if (t && t.touchType === 'stylus') return;
+    if (rendering || drawing || e.touches.length !== 1) return;
+    swipeState = {
+      startX:t.clientX, startY:t.clientY, dx:0, dy:0, t0:Date.now(),
+      active:true, startScrollTop: stage.scrollTop
+    };
   }
   function onTouchMove(e){
-    if (!swipeState.active) return;
     const t = e.touches[0];
+    if (t && t.touchType === 'stylus') return;
+    if (!swipeState.active) return;
+    e.preventDefault();
     swipeState.dx = t.clientX - swipeState.startX;
     swipeState.dy = t.clientY - swipeState.startY;
-    if (Math.abs(swipeState.dx) > 20 && Math.abs(swipeState.dx) > Math.abs(swipeState.dy) * SWIPE_DIR_RATIO){
-      e.preventDefault();
+    if (Math.abs(swipeState.dy) > Math.abs(swipeState.dx)) {
+      stage.scrollTop = swipeState.startScrollTop - swipeState.dy;
     }
   }
   function onTouchEnd(){
     if (!swipeState.active) return;
     const dt = Date.now() - swipeState.t0;
-    const { dx } = swipeState;
+    const { dx, dy } = swipeState;
     swipeState.active = false;
     if (swipeLock || rendering) return;
-    if (Math.abs(dx) > Math.abs(swipeState.dy) * SWIPE_DIR_RATIO && Math.abs(dx) >= SWIPE_MIN && dt <= SWIPE_MAX_TIME){
+    if (Math.abs(dx) > Math.abs(dy) * SWIPE_DIR_RATIO && Math.abs(dx) >= SWIPE_MIN && dt <= SWIPE_MAX_TIME){
       swipeLock = true;
       const newPage = dx < 0 ? page + 1 : page - 1;
       if (newPage > 0 && newPage <= pages) renderPage(newPage);
@@ -385,74 +385,86 @@ export const EDITOR_HTML = `<!doctype html>
     }
   }
 
-  let drawing=false, cur=null, erasePath=[], pending=null;
-  const isPen = (e)=> e.pointerType==='pen', isTouch = (e)=> e.pointerType==='touch', isMouse = (e) => e.pointerType === 'mouse';
+  let drawing=false, cur=null, erasePath=[];
+  const isPen = (e)=> e.pointerType==='pen';
   
   function xy(ev){
-    const r=ink.getBoundingClientRect();
+    const r=wrap.getBoundingClientRect();
     return { x:(ev.clientX-r.left)*(ink.width/r.width), y:(ev.clientY-r.top)*(ink.height/r.height) };
   }
   
   function begin(e){
+    if ((mode === 'pen' || mode === 'hl' || mode === 'eraser') && isPen(e)) {
+      e.preventDefault(); e.stopPropagation();
+      if (rendering) return;
+      document.body.classList.add('inking');
+      shield.setPointerCapture(e.pointerId);
+      drawing = true;
+      if (mode === 'eraser') { erasePath = [xy(e)]; return; }
+      cur = { tool: mode, color, width, page, points: [] };
+      inkx.save();
+      if(cur.tool==='hl'){ inkx.globalAlpha=.28; inkx.strokeStyle=cur.color; inkx.lineWidth=cur.width*1.6; }
+      else { inkx.globalAlpha=1; inkx.strokeStyle=cur.color; inkx.lineWidth=cur.width; }
+      inkx.lineCap='round'; inkx.lineJoin='round';
+      addPoint(e);
+      return;
+    }
     if (mode === 'select') {
       if (dragInfo.active) return;
+      const textInput = document.getElementById('text-input');
+      if (textInput.style.display === 'block') drawTextOnCanvas(textInput);
+
       const p = xy(e);
       const targetStroke = getStrokeAtPoint(p);
       selectedStroke = targetStroke;
       showSelectionBox(targetStroke);
       return;
     }
-
-    if (mode === 'pen' || mode === 'hl' || mode === 'eraser') {
-      if (isTouch(e) || rendering) return;
-      if (!isPen(e)) return; 
-      e.preventDefault();
-      document.body.classList.add('inking');
-      ink.setPointerCapture(e.pointerId);
-      drawing = true;
-      if (mode === 'eraser') { erasePath = [xy(e)]; return; }
-      cur = { tool: mode, color, width, page, points: [] };
-      addPoint(e);
-    } else if (mode === 'text') {
+    if (mode === 'text') {
       if (drawing) return;
       createTextbox(e);
+      return;
     }
   }
   
   function addPoint(e){
+    if (!cur) return;
     const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-    for(const ev of events){ cur.points.push(xy(ev)); }
-    if(!pending){
-      pending = requestAnimationFrame(drawPending);
+    for(const ev of events){ 
+        cur.points.push(xy(ev));
+        drawNextSegment(); 
     }
   }
 
-  function drawPending() {
-    pending = null;
-    if (!cur) return;
-    const pts = cur.points;
-    if (pts.length < 2) return;
-    inkx.save();
-    if(cur.tool==='hl'){ inkx.globalAlpha=.28; inkx.strokeStyle=cur.color; inkx.lineWidth=cur.width*1.6; }
-    else { inkx.globalAlpha=1; inkx.strokeStyle=cur.color; inkx.lineWidth=cur.width; }
-    inkx.lineCap='round'; inkx.lineJoin='round';
+  function drawNextSegment() {
+    if (!cur || cur.points.length < 2) return;
+    const points = cur.points;
+    const fromIdx = Math.max(0, points.length - 2);
+    const lastPoint = points[fromIdx];
+    const newPoint = points[points.length - 1];
     inkx.beginPath();
-    inkx.moveTo(pts[0].x, pts[0].y);
-    for(let i = 1; i < pts.length; i++) inkx.lineTo(pts[i].x, pts[i].y);
+    inkx.moveTo(lastPoint.x, lastPoint.y);
+    inkx.lineTo(newPoint.x, newPoint.y);
     inkx.stroke();
-    inkx.restore();
   }
 
   function move(e){
+    if (mode === 'eraser' && isPen(e)) {
+      eraserCursor.style.display = 'block';
+      const radius = eraser;
+      const scale = wrap.getBoundingClientRect().width / ink.width;
+      eraserCursor.style.left = \`\${e.clientX}px\`;
+      eraserCursor.style.top = \`\${e.clientY}px\`;
+    }
+
     if (dragInfo.active) {
       e.preventDefault();
       const dx = e.clientX - dragInfo.startX;
       const dy = e.clientY - dragInfo.startY;
-      const canvasRect = ink.getBoundingClientRect();
-      const scaleX = ink.width / canvasRect.width;
-      const scaleY = ink.height / canvasRect.height;
+      const wrapRect = wrap.getBoundingClientRect();
+      const scaleX = ink.width / wrapRect.width;
+      const scaleY = ink.height / wrapRect.height;
       const newStroke = { ...dragInfo.stroke };
-
       if (dragInfo.type === 'move') {
         newStroke.x = dragInfo.original.x + dx * scaleX;
         newStroke.y = dragInfo.original.y + dy * scaleY;
@@ -461,21 +473,16 @@ export const EDITOR_HTML = `<!doctype html>
         const originalWidth = Math.max(...dragInfo.original.text.split('\\n').map(l => inkx.measureText(l).width));
         const newWidth = originalWidth + dx * scaleX;
         const scaleRatio = newWidth / originalWidth;
-        if (scaleRatio > 0.1) {
-          newStroke.fontSize = dragInfo.original.fontSize * scaleRatio;
-        }
+        if (scaleRatio > 0.1) newStroke.fontSize = dragInfo.original.fontSize * scaleRatio;
       }
-      
       const index = S(strokes, page).indexOf(dragInfo.stroke);
       if (index > -1) S(strokes, page)[index] = newStroke;
       dragInfo.stroke = newStroke;
-      
       redraw(page);
       showSelectionBox(newStroke);
       return;
     }
-
-    if(!drawing || isTouch(e) || mode === 'text') return;
+    if(!drawing || mode === 'text') return;
     e.preventDefault();
     if(mode==='eraser'){ erasePath.push(xy(e)); return; }
     addPoint(e);
@@ -486,16 +493,20 @@ export const EDITOR_HTML = `<!doctype html>
       dragInfo.active = false;
       document.body.style.cursor = 'default';
       selectedStroke = dragInfo.stroke;
+      saveData();
       return;
     }
-
-    if(isTouch(e) || !drawing || mode === 'text') return;
+    if(!drawing || mode === 'text') return;
     e.preventDefault();
     drawing=false;
     document.body.classList.remove('inking');
-    if(pending){ cancelAnimationFrame(pending); pending = null; }
-    if(mode==='eraser'){ applyErase(erasePath); erasePath=[]; return; }
-    if(cur && cur.points.length>=2){ S(strokes,page).push(cur); redraw(page); }
+    inkx.restore();
+    if(mode==='eraser'){ applyErase(erasePath); return; }
+    if(cur && cur.points.length>=2){ 
+      S(strokes,page).push(cur); 
+      redraw(page);
+      saveData();
+    }
     cur=null;
   }
 
@@ -503,43 +514,83 @@ export const EDITOR_HTML = `<!doctype html>
   function applyErase(path){
     const arr=S(strokes,page), r2=eraser*eraser, keep=[];
     outer: for(const s of arr){
-      for(const sp of s.points){ for(const ep of path){ if(d2(sp,ep)<=r2) continue outer; } }
+      if (s.points) {
+        for(const sp of s.points){ for(const ep of path){ if(d2(sp,ep)<=r2) continue outer; } }
+      }
       keep.push(s);
     }
-    strokes[page]=keep; redraw(page);
+    if (arr.length !== keep.length) {
+      strokes[page]=keep; 
+      redraw(page);
+      saveData();
+    }
   }
   
   function setMode(m){ 
     const textInput = document.getElementById('text-input');
-    if (mode === 'text' && textInput.style.display === 'block') {
-      drawTextOnCanvas(textInput);
-    }
+    if (textInput.style.display === 'block') drawTextOnCanvas(textInput);
     mode=m;
-    if (m !== 'select') {
-      selectedStroke = null;
-      showSelectionBox(null);
+
+    if (m === 'eraser') {
+      updateEraserCursor();
+    } else {
+      if(eraserCursor) eraserCursor.style.display = 'none';
+    }
+
+    if (m !== 'select') { selectedStroke = null; showSelectionBox(null); }
+    if (mode === 'pen' || mode === 'hl' || mode === 'eraser') {
+      post('SET_SCROLL_ENABLED', { enabled: false });
+    } else {
+      post('SET_SCROLL_ENABLED', { enabled: true });
     }
     syncToolbar();
     document.body.style.cursor = (m === 'text' || m === 'select') ? 'text' : 'default';
   }
   function setColor(c){ color=c; syncToolbar(); }
   function setWidth(w){ width=w; syncToolbar(); }
-  function setEraser(r){ eraser=r; syncToolbar(); }
+  
+  function setEraser(r){ 
+    eraser=r; 
+    updateEraserCursor();
+    syncToolbar(); 
+  }
+
+  function updateEraserCursor() {
+    if (!eraserCursor || !ink || !ink.width) return;
+    const scale = wrap.getBoundingClientRect().width / ink.width;
+    const size = eraser * 2 * scale;
+    eraserCursor.style.width = \`\${size}px\`;
+    eraserCursor.style.height = \`\${size}px\`;
+  }
+
+  function saveData() {
+    const activeStrokes = {};
+    for (const p in strokes) {
+        if (strokes[p] && strokes[p].length > 0) {
+            activeStrokes[p] = strokes[p];
+        }
+    }
+    post('SAVE_DATA', { strokes: activeStrokes });
+  }
 
   function onMsg(ev){
     let d=ev.data; try{ if(typeof d==='string') d=JSON.parse(d);}catch(_){}
     if(!d||!d.type) return;
-    if(d.type==='LOAD_PDF') openBase64(d.payload?.base64||'');
-    if(d.type==='PING') post('READY',{ok:true});
-    if(d.type==='SAVE_ANN'){
-      const all=[]; Object.keys(strokes).forEach(k=>{ const p=parseInt(k,10); (strokes[p]||[]).forEach(s=>all.push(s)); }); 
-      post('ANN_SNAPSHOT',{items:all});
+
+    if(d.type==='LOAD_INITIAL_DATA') {
+        const loadedStrokes = d.payload?.strokes || {};
+        Object.keys(strokes).forEach(key => delete strokes[key]);
+        Object.assign(strokes, loadedStrokes);
+        openBase64(d.payload?.base64 || '');
+        return;
     }
+    
+    if(d.type==='PING') post('READY',{ok:true});
     if(d.type==='PREV' && !rendering && page>1){ renderPage(page-1); }
     if(d.type==='NEXT' && !rendering && page<pages){ renderPage(page+1); }
-    if(d.type==='UNDO'){ const u=S(undo,page); if(u.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(redo,page).push(cur); strokes[page]=u.pop(); redraw(page); } }
-    if(d.type==='REDO'){ const r=S(redo,page); if(r.length){ const cur=JSON.parse(JSON.stringify(S(strokes,page))); S(undo,page).push(cur); strokes[page]=r.pop(); redraw(page); } }
-    if(d.type==='CLEAR'){ const u=S(undo,page); u.push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=[]; redraw(page); }
+    if(d.type==='UNDO'){ const u=S(undo,page); if(u.length){ S(redo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=u.pop(); redraw(page); saveData(); } }
+    if(d.type==='REDO'){ const r=S(redo,page); if(r.length){ S(undo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=r.pop(); redraw(page); saveData(); } }
+    if(d.type==='CLEAR'){ S(undo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=[]; redraw(page); saveData(); }
     if(d.type==='SET_MODE'){ setMode(d.payload?.mode||'pen'); }
     if(d.type==='SET_COLOR'){ setColor(d.payload?.color||'#111111'); }
     if(d.type==='SET_WIDTH'){ setWidth(d.payload?.width||4); }
@@ -604,14 +655,30 @@ export const EDITOR_HTML = `<!doctype html>
     cv=document.createElement('canvas'); cv.id='pdf'; wrap.appendChild(cv);
     hl=document.createElement('canvas'); hl.id='highlight-canvas'; wrap.appendChild(hl);
     ink=document.createElement('canvas'); ink.id='ink'; wrap.appendChild(ink);
+    shield=document.createElement('div'); shield.id='event-shield'; wrap.appendChild(shield);
     loading=document.createElement('div'); loading.id='loading'; loading.textContent='불러오는 중…'; wrap.appendChild(loading);
     
+    eraserCursor = document.createElement('div');
+    eraserCursor.id = 'eraser-cursor';
+    document.body.appendChild(eraserCursor);
+
     selectionBox = document.createElement('div');
     selectionBox.id = 'selection-box';
-    selectionBox.innerHTML = \`<div class="move-handle"></div><div class="resize-handle br"></div>\`;
+    selectionBox.innerHTML = \`<div class="handle tl">✥</div><div class="handle tr">×</div><div class="handle br">⤡</div>\`;
     wrap.appendChild(selectionBox);
     selectionBox.querySelector('.br').addEventListener('pointerdown', (e) => startDrag(e, 'br'));
-    selectionBox.querySelector('.move-handle').addEventListener('pointerdown', (e) => startDrag(e, 'move'));
+    selectionBox.querySelector('.tl').addEventListener('pointerdown', (e) => startDrag(e, 'move'));
+    selectionBox.querySelector('.tr').addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (!selectedStroke) return;
+      const strokesOnPage = S(strokes, page);
+      const index = strokesOnPage.indexOf(selectedStroke);
+      if (index > -1) strokesOnPage.splice(index, 1);
+      selectedStroke = null;
+      showSelectionBox(null);
+      redraw(page);
+      saveData();
+    });
 
     const textInput = document.createElement('textarea');
     textInput.id = 'text-input';
@@ -624,47 +691,61 @@ export const EDITOR_HTML = `<!doctype html>
     hlx=hl.getContext('2d');
     inkx=ink.getContext('2d',{willReadFrequently:true});
 
-    ink.addEventListener('dblclick', (e) => {
-        if (mode !== 'select' || !selectedStroke) return;
-        const strokesOnPage = S(strokes, page);
-        const index = strokesOnPage.indexOf(selectedStroke);
-        if (index > -1) strokesOnPage.splice(index, 1);
-        
-        const canvasRect = ink.getBoundingClientRect();
-        const scaleX = canvasRect.width / ink.width;
-        
-        textInput.value = selectedStroke.text;
-        textInput.style.left = \`\${selectedStroke.x * scaleX}px\`;
-        textInput.style.top = \`\${(selectedStroke.y - selectedStroke.fontSize * 0.9) * scaleX}px\`;
-        textInput.style.fontSize = \`\${selectedStroke.fontSize * scaleX}px\`;
-        textInput.style.color = selectedStroke.color;
-        textInput.style.display = 'block';
-        textInput.focus();
-
-        selectedStroke = null;
-        showSelectionBox(null);
-        drawing = true;
+    shield.addEventListener('dblclick', (e) => {
+      if(mode !== 'select') return;
+      const p = xy(e);
+      const s = getStrokeAtPoint(p);
+      if(!s) return;
+      
+      editingStroke = s;
+      selectedStroke = null;
+      showSelectionBox(null);
+      
+      const wrapRect = wrap.getBoundingClientRect();
+      const scaleX = wrapRect.width / ink.width;
+      
+      textInput.value = s.text;
+      const textX = (s.x - (s.fontSize*0.4/2)) * scaleX;
+      const textY = (s.y - s.fontSize * 0.9 - (s.fontSize*0.4/2)) * scaleX;
+      
+      textInput.style.left = \`\${textX}px\`;
+      textInput.style.top = \`\${textY}px\`;
+      textInput.style.fontSize = \`\${s.fontSize * scaleX}px\`;
+      textInput.style.color = s.color;
+      textInput.style.display = 'block';
+      textInput.focus();
+      drawing = true;
     });
 
     window.addEventListener('pointermove', move, { passive: false });
     window.addEventListener('pointerup', end, { passive: false });
     
-    ink.addEventListener('pointerdown', begin, {passive:false});
-    // ink.addEventListener('pointermove', move, {passive:false}); // 이제 window에서 처리
-    // ink.addEventListener('pointerup', end, {passive:false}); // 이제 window에서 처리
-    ink.addEventListener('pointercancel', end, {passive:false});
-    stage.addEventListener('touchstart', onTouchStart, {passive:true});
-    stage.addEventListener('touchmove', onTouchMove, {passive:false});
-    stage.addEventListener('touchend', onTouchEnd, {passive:true});
-    stage.addEventListener('touchcancel', ()=> swipeState.active=false, {passive:true});
+    shield.addEventListener('pointerdown', begin, {passive:false});
+    shield.addEventListener('pointercancel', end, {passive:false});
+    shield.addEventListener('pointerenter', (e) => {
+      if (mode === 'eraser' && isPen(e)) {
+        eraserCursor.style.display = 'block';
+      }
+    });
+    shield.addEventListener('pointerleave', () => {
+      eraserCursor.style.display = 'none';
+    });
+    shield.addEventListener('touchstart', onTouchStart, {passive:false});
+    shield.addEventListener('touchmove', onTouchMove, {passive:false});
+    shield.addEventListener('touchend', onTouchEnd, {passive:false});
+    shield.addEventListener('touchcancel', ()=> swipeState.active=false, {passive:false});
     
     document.getElementById('back').onclick =()=> post('BACK');
     document.getElementById('prev').onclick =()=> { if(!rendering && page>1) renderPage(page-1); };
     document.getElementById('next').onclick =()=> { if(!rendering && page<pages) renderPage(page+1); };
-    document.getElementById('undo').onclick =()=> { const u=S(undo,page); if(u.length){ S(redo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=u.pop(); redraw(page);} };
-    document.getElementById('redo').onclick =()=> { const r=S(redo,page); if(r.length){ S(undo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=r.pop(); redraw(page);} };
-    document.getElementById('save').onclick =()=> { post('ANN_SNAPSHOT',{items:Object.values(strokes).flat()}); };
+    document.getElementById('undo').onclick =()=> { const u=S(undo,page); if(u.length){ S(redo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=u.pop(); redraw(page); saveData();} };
+    document.getElementById('redo').onclick =()=> { const r=S(redo,page); if(r.length){ S(undo,page).push(JSON.parse(JSON.stringify(S(strokes,page)))); strokes[page]=r.pop(); redraw(page); saveData();} };
+    document.getElementById('save').onclick =()=> saveData();
     
+    document.getElementById('tools').addEventListener('click',(e)=>{
+      const t=e.target.closest('[data-mode]'); if(t) setMode(t.dataset.mode);
+    });
+
     const searchBox = document.getElementById('search-box');
     const searchInput = document.getElementById('search-input');
     document.getElementById('search-toggle').onclick = () => {
@@ -677,11 +758,7 @@ export const EDITOR_HTML = `<!doctype html>
     document.getElementById('search-prev').onclick = () => navigateToResult(currentResultIdx - 1);
     document.getElementById('search-next').onclick = () => navigateToResult(currentResultIdx + 1);
     
-    document.getElementById('tools').addEventListener('click',(e)=>{
-      const t=e.target.closest('[data-mode]'); if(t) setMode(t.dataset.mode);
-    });
-    
-    sheetColor=document.createElement('div'); sheetColor.className='sheet'; sheetColor.innerHTML=\`<div class="row" style="justify-content:space-between"><span class="dot" data-c="#111111"></span><span class="dot" data-c="#ef4444"></span><span class="dot" data-c="#22c55e"></span><span class="dot" data-c="#3b82f6"></span><span class="dot" data-c="#facc15"></span><span class="dot" data-c="#a855f7"></span></div>\`; document.body.appendChild(sheetColor);
+    sheetColor=document.createElement('div'); sheetColor.className='sheet'; sheetColor.innerHTML=\`<div class="row" style="justify-content:space-between; flex-wrap:wrap; gap:8px;"><span class="dot" data-c="#111111"></span><span class="dot" data-c="#ef4444"></span><span class="dot" data-c="#22c55e"></span><span class="dot" data-c="#3b82f6"></span><span class="dot" data-c="#facc15"></span><span class="dot" data-c="#a855f7"></span></div>\`; document.body.appendChild(sheetColor);
     sheetWidth=document.createElement('div'); sheetWidth.className='sheet'; sheetWidth.innerHTML=\`<div class="row"><label>굵기</label><input id="wRange" type="range" min="1" max="24" step="1" value="4"><span id="wVal">4px</span></div><div class="row"><label>지우개</label><input id="eRange" type="range" min="6" max="30" step="2" value="14"><span id="eVal">14px</span></div>\`; document.body.appendChild(sheetWidth);
     const pager=document.createElement('div'); pager.id='pager'; pager.innerHTML=\`<span id="ptext">1/?</span>\`; document.body.appendChild(pager); ptext=document.getElementById('ptext');
     document.getElementById('paletteBtn').onclick=()=>{ sheetWidth.classList.remove('show'); sheetColor.classList.toggle('show'); };
@@ -690,11 +767,13 @@ export const EDITOR_HTML = `<!doctype html>
     sheetWidth.querySelector('#wRange').oninput=(e)=>{ setWidth(parseInt(e.target.value,10)); sheetWidth.querySelector('#wVal').textContent=width+'px'; };
     sheetWidth.querySelector('#eRange').oninput=(e)=>{ setEraser(parseInt(e.target.value,10)); sheetWidth.querySelector('#eVal').textContent=eraser+'px'; };
 
+    updateEraserCursor();
     syncToolbar();
     post('READY',{ok:true});
     window.addEventListener('resize', ()=> { if(pdf) renderPage(page); }, {passive:true});
   });
 <\/script>
 </head>
-<body></body>
+<body>
+</body>
 </html>`;

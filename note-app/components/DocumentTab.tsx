@@ -1,4 +1,3 @@
-// components/DocumentTab.tsx
 import React, { useState } from 'react';
 import {
     View,
@@ -155,34 +154,10 @@ export default function DocumentTab() {
         }
     };
 
-    // 보기 화면(웹뷰 렌더) 열기
-    const openViewer = async (note: any) => {
-        const id = pickNoteId(note);
-        const name = pickNoteName(note);
-        if (!id) {
-            Alert.alert('오류', '노트 식별자를 찾을 수 없다.');
-            return;
-        }
+    // --- 1. openViewer 함수 삭제 ---
+    // 더 이상 사용하지 않으므로 관련 함수를 깨끗하게 제거했습니다.
 
-        try {
-            console.log('👉 보기 진입:', note);
-            const url = `${API_BASE}/api/notes/${id}/file`;
-            const target = `${FileSystem.documentDirectory}${id}.viewer.pdf`;
-            console.log('[DocTab] 보기용 다운로드 시작:', url, '→', target);
-            const { uri } = await FileSystem.downloadAsync(url, target);
-            console.log('[DocTab] 보기용 다운로드 완료:', uri);
-
-            router.push({
-                pathname: '/pdf-viewer',
-                params: { pdfUrl: encodeURIComponent(uri), noteId: id, name },
-            });
-        } catch (e) {
-            console.error('[DocTab] 보기 열기 실패:', e);
-            Alert.alert('오류', 'PDF를 열지 못했다.');
-        }
-    };
-
-    // 편집 화면 열기 (길게 눌러 오픈)
+    // 편집 화면 열기
     const openEditor = async (note: any) => {
         const id = pickNoteId(note);
         const name = pickNoteName(note);
@@ -309,10 +284,11 @@ export default function DocumentTab() {
                         const id = pickNoteId(note);
                         return (
                             <View key={id} style={styles.folderContainer}>
+                                {/* --- 2. onPress 이벤트를 openEditor로 변경 --- */}
                                 <TouchableOpacity
                                     style={styles.folderItem}
-                                    onPress={() => openViewer(note)}
-                                    onLongPress={() => openEditor(note)} // 길게 눌러 편집 열기
+                                    onPress={() => openEditor(note)} // 짧게 터치해도 편집 열기
+                                    // onLongPress는 더 이상 필요 없으므로 삭제
                                 >
                                     <NoteIcon width={120} height={120} />
                                 </TouchableOpacity>
